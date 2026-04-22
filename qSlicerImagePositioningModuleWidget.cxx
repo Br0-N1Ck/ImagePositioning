@@ -168,9 +168,16 @@ void qSlicerImagePositioningModuleWidget::setup()
 
 
   // Buttons
+  QObject::connect( d->PushButton_SetView, SIGNAL(clicked()),
+    this, SLOT(onSetViewClicked()));
   QObject::connect( d->PushButton_CustomLayout, SIGNAL(clicked()),
     this, SLOT(onSetCustomLayoutClicked()));
+  QObject::connect(d->PushButton_HorizontalImage, SIGNAL(clicked()),
+      this, SLOT(onHorizontalImageClicked()));
+  QObject::connect(d->PushButton_VerticalImage, SIGNAL(clicked()),
+      this, SLOT(onVerticalImageClicked()));
 }
+
 
 void qSlicerImagePositioningModuleWidget::onSetCustomLayoutClicked()
 {
@@ -201,6 +208,67 @@ void qSlicerImagePositioningModuleWidget::onSetCustomLayoutClicked()
   slicerApplication->processEvents();
 }
 
+void qSlicerImagePositioningModuleWidget::onSetViewClicked()
+{
+  Q_D(qSlicerImagePositioningModuleWidget);
+  if (!d->MRMLNodeComboBox_XrayImage->currentNode() || !d->MRMLNodeComboBox_DrrImage->currentNode())
+  {
+    qCritical() << Q_FUNC_INFO << ": Invalid Xray or DRR image node";
+    return;
+  }
+
+  qSlicerApplication* slicerApplication = qSlicerApplication::application();
+  qSlicerLayoutManager* layoutManager = slicerApplication->layoutManager();
+
+  // Set images
+  // DRR - background, XRay - foreground
+  if (layoutManager->layout() == 1020)
+  {
+      vtkMRMLNode* xrayImageNode = d->MRMLNodeComboBox_XrayImage->currentNode();
+      vtkMRMLNode* drrImageNode = d->MRMLNodeComboBox_DrrImage->currentNode();
+
+      qMRMLSliceWidget* sliceWidget = layoutManager->sliceWidget("XrayDetectorSlice");
+      vtkMRMLSliceNode* sliceNode = sliceWidget->mrmlSliceNode();
+      vtkMRMLSliceLogic* sliceLogic = sliceWidget->sliceLogic();
+      sliceLogic->GetSliceCompositeNode()->SetForegroundVolumeID(xrayImageNode->GetID());
+      sliceLogic->GetSliceCompositeNode()->SetBackgroundVolumeID(drrImageNode->GetID());
+      sliceLogic->GetSliceCompositeNode()->SetForegroundOpacity(0.5);
+      sliceLogic->GetSliceCompositeNode()->SetClipToBackgroundVolume(false);
+      sliceLogic->RotateSliceToLowestVolumeAxes(); // Reformat 
+      sliceLogic->FitSliceToAll();
+      sliceNode->UpdateMatrices();
+      setSliceOrientation();
+  }
+  else
+  {
+      qCritical() << Q_FUNC_INFO << ": Wrong layout, set layout to custom";
+      return;
+  }
+}
+
+void qSlicerImagePositioningModuleWidget::onHorizontalImageClicked()
+{
+    Q_D(qSlicerImagePositioningModuleWidget);
+
+    // Uncheck "Vertical" button
+    if (d->PushButton_VerticalImage->isChecked())
+    {
+        d->PushButton_VerticalImage->setChecked(false);
+    }
+
+}
+
+void qSlicerImagePositioningModuleWidget::onVerticalImageClicked()
+{
+    Q_D(qSlicerImagePositioningModuleWidget);
+
+    // Uncheck "Horizontal" button
+    if (d->PushButton_HorizontalImage->isChecked())
+    {
+        d->PushButton_HorizontalImage->setChecked(false);
+    }
+}
+
 void qSlicerImagePositioningModuleWidget::onDrrImageNodeChanged(vtkMRMLNode* drrImageNode)
 {
   Q_D(qSlicerImagePositioningModuleWidget);
@@ -211,29 +279,13 @@ void qSlicerImagePositioningModuleWidget::onDrrImageNodeChanged(vtkMRMLNode* drr
   else 
   {
     qCritical() << Q_FUNC_INFO << ": Invalid DRR image node";
+    d->PushButton_SetView->setEnabled(false);
     return;
   }
 
-  qSlicerApplication* slicerApplication = qSlicerApplication::application();
-  qSlicerLayoutManager* layoutManager = slicerApplication->layoutManager();
-
-  // Set images
-  // DRR - foreground, XRay - background
-  if (layoutManager->layout() == 1020)
+  if (d->MRMLNodeComboBox_XrayImage->currentNode() && d->MRMLNodeComboBox_DrrImage->currentNode())
   {
-      qMRMLSliceWidget* sliceWidget = slicerApplication->layoutManager()->sliceWidget("XrayDetectorSlice");
-      vtkMRMLSliceNode* sliceNode = sliceWidget->mrmlSliceNode();
-      vtkMRMLSliceLogic* sliceLogic = sliceWidget->sliceLogic();
-      sliceLogic->GetSliceCompositeNode()->SetBackgroundVolumeID(drrImageNode->GetID());
-      sliceLogic->RotateSliceToLowestVolumeAxes(); // Reformat
-      //TODO: After reformat change orientation based on "Horisontal" or "Vertical"
-      sliceLogic->FitSliceToAll();
-      sliceNode->UpdateMatrices();
-  }
-  else
-  {
-      qCritical() << Q_FUNC_INFO << ": Wrong layout, set layout to custom";
-      return;
+    d->PushButton_SetView->setEnabled(true);
   }
 }
 
@@ -247,30 +299,12 @@ void qSlicerImagePositioningModuleWidget::onXrayImageNodeChanged(vtkMRMLNode* xr
   else
   {
     qCritical() << Q_FUNC_INFO << ": Invalid Xray image node";
+    d->PushButton_SetView->setEnabled(false);
     return;
   }
-  qSlicerApplication* slicerApplication = qSlicerApplication::application();
-  qSlicerLayoutManager* layoutManager = slicerApplication->layoutManager();
-
-  // Set images
-  // DRR - foreground, XRay - background
-  if (layoutManager->layout() == 1020)
+  if (d->MRMLNodeComboBox_XrayImage->currentNode() && d->MRMLNodeComboBox_DrrImage->currentNode())
   {
-      qMRMLSliceWidget* sliceWidget = slicerApplication->layoutManager()->sliceWidget("XrayDetectorSlice");
-      vtkMRMLSliceNode* sliceNode = sliceWidget->mrmlSliceNode();
-      vtkMRMLSliceLogic* sliceLogic = sliceWidget->sliceLogic();
-      sliceLogic->GetSliceCompositeNode()->SetForegroundVolumeID(xrayImageNode->GetID());
-      sliceLogic->GetSliceCompositeNode()->SetForegroundOpacity(0.5);
-      sliceLogic->RotateSliceToLowestVolumeAxes(); // Reformat 
-      //TODO: After reformat change orientation based on "Horisontal" or "Vertical"
-
-      sliceLogic->FitSliceToAll();
-      sliceNode->UpdateMatrices();
-  }
-  else
-  {
-      qCritical() << Q_FUNC_INFO << ": Wrong layout, set layout to custom";
-      return;
+    d->PushButton_SetView->setEnabled(true);
   }
 }
 
@@ -311,4 +345,49 @@ void qSlicerImagePositioningModuleWidget::onXrayOpacityChanged(double opacity)
         return;
     }
 
+}
+
+void qSlicerImagePositioningModuleWidget::setSliceOrientation()
+{
+  Q_D(qSlicerImagePositioningModuleWidget);
+  qSlicerApplication* slicerApplication = qSlicerApplication::application();
+  qSlicerLayoutManager* layoutManager = slicerApplication->layoutManager();
+  qMRMLSliceWidget* sliceWidget = layoutManager->sliceWidget("XrayDetectorSlice");
+  vtkMRMLSliceNode* sliceNode = sliceWidget->mrmlSliceNode();
+
+  double N[3];
+  double T[3];
+
+  if (d->PushButton_HorizontalImage->isChecked() && !d->PushButton_VerticalImage->isChecked())
+  {
+    // Horizontal
+    N[0] = 1.0; N[1] = 0.0; N[2] = 0.0; // Normal: Left -> Right
+    T[0] = 0.0; T[1] = 0.0; T[2] = -1.0; // Up: Anterior
+  }
+  else if (d->PushButton_VerticalImage->isChecked() && !d->PushButton_HorizontalImage->isChecked())
+  {
+    // Vertical
+    N[0] = 0.0; N[1] = -1.0; N[2] = 0.0; // Normal: Anterior -> Posterior
+    T[0] = 1.0; T[1] = 0.0; T[2] = 0.0; // Up: Superior
+  }
+  else
+  {
+    qCritical() << Q_FUNC_INFO << ": Set a proper beam orientation";
+    return;
+  }
+
+  vtkMatrix4x4* SliceToRASMatrix = sliceNode->GetSliceToRAS();
+
+  double originRAS[3];
+  originRAS[0] = SliceToRASMatrix->GetElement(0,3);
+  originRAS[1] = SliceToRASMatrix->GetElement(1,3);
+  originRAS[2] = SliceToRASMatrix->GetElement(2,3);
+
+  sliceNode->SetSliceToRASByNTP(
+      N[0], N[1], N[2],
+      T[0], T[1], T[2],
+      originRAS[0], originRAS[1], originRAS[2],
+      0                   // Orientation index (unused)
+  );
+  sliceNode->UpdateMatrices();
 }

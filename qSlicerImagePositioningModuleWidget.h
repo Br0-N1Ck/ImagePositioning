@@ -38,12 +38,16 @@ public:
   virtual ~qSlicerImagePositioningModuleWidget();
 
 public slots:
+
+  void onSetViewClicked();
   void onSetCustomLayoutClicked();
+  void onHorizontalImageClicked();
+  void onVerticalImageClicked();
   void onDrrImageNodeChanged(vtkMRMLNode* drrImageNode);
   void onXrayImageNodeChanged(vtkMRMLNode* xrayImageNode);
 //  void onDrrOpacityChanged(double* opacity);
   void onXrayOpacityChanged(double opacity);
-
+  void setSliceOrientation();
 protected:
   QScopedPointer<qSlicerImagePositioningModuleWidgetPrivate> d_ptr;
 
