@@ -29,6 +29,7 @@
 #include <vtkMRMLSliceNode.h>
 #include <vtkMRMLSliceLogic.h>
 #include <vtkMRMLScalarVolumeNode.h>
+#include <vtkMRMLScalarVolumeDisplayNode.h>
 #include <vtkMRMLLinearTransformNode.h>
 #include <vtkMRMLSliceCompositeNode.h>
 
@@ -109,6 +110,8 @@ public:
   int PreviousLayoutId = -1;
   vtkSmartPointer<vtkTransform> DrrImageTransform;
   vtkSmartPointer<vtkTransform> XrayImageTransform;
+
+ // vtkSmartPointer<vtkMRMLImagePositioningNode> ImagePositioningNode;
 };
 
 //-----------------------------------------------------------------------------
@@ -168,6 +171,7 @@ void qSlicerImagePositioningModuleWidget::setup()
 
 
   // Buttons
+  // TODO: Add proper mutual exclusivity for buttons
   QObject::connect( d->PushButton_SetView, SIGNAL(clicked()),
     this, SLOT(onSetViewClicked()));
   QObject::connect( d->PushButton_CustomLayout, SIGNAL(clicked()),
@@ -176,6 +180,10 @@ void qSlicerImagePositioningModuleWidget::setup()
       this, SLOT(onHorizontalImageClicked()));
   QObject::connect(d->PushButton_VerticalImage, SIGNAL(clicked()),
       this, SLOT(onVerticalImageClicked()));
+
+  // Children custom widgets
+  connect(this, SIGNAL(mrmlSceneChanged(vtkMRMLScene*)), d->ImagePositioningWidget, SLOT(setMRMLScene(vtkMRMLScene*)));
+  d->ImagePositioningWidget->setXrayNode(nullptr);
 }
 
 
@@ -224,8 +232,8 @@ void qSlicerImagePositioningModuleWidget::onSetViewClicked()
   // DRR - background, XRay - foreground
   if (layoutManager->layout() == 1020)
   {
-      vtkMRMLNode* xrayImageNode = d->MRMLNodeComboBox_XrayImage->currentNode();
-      vtkMRMLNode* drrImageNode = d->MRMLNodeComboBox_DrrImage->currentNode();
+      vtkMRMLScalarVolumeNode* xrayImageNode = vtkMRMLScalarVolumeNode::SafeDownCast(d->MRMLNodeComboBox_XrayImage->currentNode());
+      vtkMRMLScalarVolumeNode* drrImageNode = vtkMRMLScalarVolumeNode::SafeDownCast(d->MRMLNodeComboBox_DrrImage->currentNode());
 
       qMRMLSliceWidget* sliceWidget = layoutManager->sliceWidget("XrayDetectorSlice");
       vtkMRMLSliceNode* sliceNode = sliceWidget->mrmlSliceNode();
@@ -238,6 +246,19 @@ void qSlicerImagePositioningModuleWidget::onSetViewClicked()
       sliceLogic->FitSliceToAll();
       sliceNode->UpdateMatrices();
       setSliceOrientation();
+
+      // Change color of images
+      vtkMRMLScalarVolumeDisplayNode* drrDisplayNode = vtkMRMLScalarVolumeDisplayNode::SafeDownCast(drrImageNode->GetDisplayNode());
+      vtkMRMLScalarVolumeDisplayNode* xrayDisplayNode = vtkMRMLScalarVolumeDisplayNode::SafeDownCast(xrayImageNode->GetDisplayNode());
+      drrDisplayNode->SetAndObserveColorNodeID("vtkMRMLColorTableNodeGreen");
+      xrayDisplayNode->SetAndObserveColorNodeID("vtkMRMLColorTableNodeRed");
+
+      // Set compositing mode
+      // TODO: let user choose compositing mode
+      // alpha blend = 0
+      // add = 2
+      // subtract = 3
+      sliceLogic->GetSliceCompositeNode()->SetCompositing(2); // add
   }
   else
   {
@@ -292,6 +313,9 @@ void qSlicerImagePositioningModuleWidget::onDrrImageNodeChanged(vtkMRMLNode* drr
 void qSlicerImagePositioningModuleWidget::onXrayImageNodeChanged(vtkMRMLNode* xrayImageNode)
 {
   Q_D(qSlicerImagePositioningModuleWidget);
+  vtkMRMLScalarVolumeNode* xrayVolumeNode = vtkMRMLScalarVolumeNode::SafeDownCast(xrayImageNode);
+  d->ImagePositioningWidget->setXrayNode(xrayVolumeNode);
+
   if (xrayImageNode)
   {
     qDebug() << Q_FUNC_INFO << xrayImageNode->GetName();

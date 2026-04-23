@@ -41,6 +41,9 @@
         </item>
         <item row="0" column="0" colspan="2">
          <widget class="qMRMLMatrixWidget" name="MRMLMatrixWidget_TransformMatrix">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
           <property name="decimals">
            <number>3</number>
           </property>
@@ -52,7 +55,7 @@
         <item row="1" column="0" colspan="2">
          <widget class="qMRMLTransformSliders" name="MRMLTransformSliders_RegistrationTranslate">
           <property name="enabled">
-           <bool>false</bool>
+           <bool>true</bool>
           </property>
           <property name="Title">
            <string>Translation</string>
@@ -73,6 +76,9 @@
         </item>
         <item row="2" column="0" colspan="2">
          <widget class="qMRMLTransformSliders" name="MRMLTransformSliders">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
           <property name="Title">
            <string>Rotation</string>
           </property>
@@ -90,7 +96,7 @@
     </widget>
    </item>
    <item row="2" column="0">
-    <widget class="QPushButton" name="BushButton_Reset">
+    <widget class="QPushButton" name="PushButton_Reset">
      <property name="text">
       <string>Reset position</string>
      </property>

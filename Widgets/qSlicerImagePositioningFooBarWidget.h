@@ -23,11 +23,13 @@
 
 // Qt includes
 #include <QWidget>
+#include <qSlicerWidget.h>
 
 // FooBar Widgets includes
 #include "qSlicerImagePositioningModuleWidgetsExport.h"
 
 class qSlicerImagePositioningFooBarWidgetPrivate;
+class vtkMRMLScalarVolumeNode;
 
 class Q_SLICER_MODULE_IMAGEPOSITIONING_WIDGETS_EXPORT qSlicerImagePositioningFooBarWidget
   : public QWidget
@@ -38,11 +40,16 @@ public:
   qSlicerImagePositioningFooBarWidget(QWidget *parent=0);
   ~qSlicerImagePositioningFooBarWidget() override;
 
+  void setXrayNode(vtkMRMLScalarVolumeNode* xrayNode);
+
 protected slots:
   void onMoveUpClicked();
   void onMoveDownClicked();
   void onMoveLeftClicked();
   void onMoveRightClicked();
+
+  void onTranslateSlidersValuesChanged();
+  void onTranslateSlidersRangeChanged();
 
 protected:
   QScopedPointer<qSlicerImagePositioningFooBarWidgetPrivate> d_ptr;
