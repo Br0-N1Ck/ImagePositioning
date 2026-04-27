@@ -27,6 +27,9 @@ vtkMRMLNodeNewMacro(vtkMRMLImagePositioningNode);
 
 vtkMRMLImagePositioningNode::vtkMRMLImagePositioningNode()
 {
+    vtkNew< vtkTransform > horizTransform, verticalTransform;
+    horizTransform->Identity();
+    verticalTransform->Identity();
 }
 
 //----------------------------------------------------------------------------
@@ -182,6 +185,21 @@ void vtkMRMLImagePositioningNode::SetAndObserveDrrNode(vtkMRMLScalarVolumeNode* 
     }
 
     this->SetNodeReferenceID(DRR_NODE_REFERENCE_ROLE, (node ? node->GetID() : nullptr));
+
+    // this->FiducialNode = node;
+
+    // this->Modified();
+}
+
+void vtkMRMLImagePositioningNode::SetAndObserveXrayNode(vtkMRMLScalarVolumeNode* node)
+{
+    if (node && this->Scene != node->GetScene())
+    {
+        vtkErrorMacro("Cannot set reference: the referenced and referencing node are not in the same scene");
+        return;
+    }
+
+    this->SetNodeReferenceID(XRAY_NODE_REFERENCE_ROLE, (node ? node->GetID() : nullptr));
 
     // this->FiducialNode = node;
 

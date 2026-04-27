@@ -80,8 +80,12 @@ void qSlicerImagePositioningFooBarWidgetPrivate::init()
 
   QObject::connect( this->MRMLTransformSliders_RegistrationTranslate, SIGNAL(valuesChanged()),
     q, SLOT(onTranslateSlidersValuesChanged()));
-  QObject::connect( this->MRMLTransformSliders_RegistrationTranslate, SIGNAL(rangeChanged()),
-    q, SLOT(onTranslateSlidersRangeChanged()));
+  //QObject::connect( this->MRMLTransformSliders_RegistrationTranslate, SIGNAL(rangeChanged()),
+    //q, SLOT(onTranslateSlidersRangeChanged()));
+  QObject::connect(this->MRMLSliderWidget_HorizontalTransform, SIGNAL(valuesChanged()),
+      q, SLOT(onTranslateSlidersValuesChanged()));
+  QObject::connect(this->MRMLTransformSliders_RegistrationTranslate, SIGNAL(valuesChanged()),
+      q, SLOT(onTranslateSlidersValuesChanged()));
 
 //  QObject::connect( this->PushButton_TransformCarmRawImage, SIGNAL(clicked()), q, SLOT(onTransformCarmRawImageClicked()));
   QObject::connect( this->PushButton_Up, SIGNAL(clicked()), q, SLOT(onMoveUpClicked()));

@@ -25,6 +25,9 @@
 
 class qSlicerImagePositioningModuleWidgetPrivate;
 class vtkMRMLNode;
+class vtkMRMLScene;
+class vtkMRMLScalarVolumeNode;
+class vtkMRMLLinearTransformNode;
 
 class Q_SLICER_QTMODULES_IMAGEPOSITIONING_EXPORT qSlicerImagePositioningModuleWidget :
   public qSlicerAbstractModuleWidget
@@ -48,10 +51,25 @@ public slots:
 //  void onDrrOpacityChanged(double* opacity);
   void onXrayOpacityChanged(double opacity);
   void setSliceOrientation();
+  void onMoveUpClicked();
+  void onMoveDownClicked();
+  void onMoveLeftClicked();
+  void onMoveRightClicked();
+  void onRotateClockwiseClicked();
+  void onRotateCounterClockwiseClicked();
+  void onResetTransformClicked();
+  void onHorizontalTransformChanged(double value);
+  void onVerticalTransformChanged(double value);
+  void onRotationTransformChanged(double value);
 protected:
   QScopedPointer<qSlicerImagePositioningModuleWidgetPrivate> d_ptr;
 
   void setup() override;
+  void setXrayNode(vtkMRMLScalarVolumeNode* xrayNode);
+  vtkMRMLLinearTransformNode* getOrCreateNamedTransformNode(vtkMRMLScene* scene, const char* name);
+  vtkMRMLLinearTransformNode* getActiveXrayTransformNode();
+  void updateXrayTransformFrom2DControls();
+  void sync2DControlsFromActiveOrientation();
 
 private:
   Q_DECLARE_PRIVATE(qSlicerImagePositioningModuleWidget);
