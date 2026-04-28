@@ -28,6 +28,9 @@
 #include "vtkSlicerModuleLogic.h"
 
 // MRML includes
+class vtkMRMLImagePositioningNode;
+class vtkMRMLScalarVolumeNode;
+class vtkMRMLLinearTransformNode;
 
 // STD includes
 #include <cstdlib>
@@ -43,6 +46,13 @@ public:
   static vtkSlicerImagePositioningLogic *New();
   vtkTypeMacro(vtkSlicerImagePositioningLogic, vtkSlicerModuleLogic);
   void PrintSelf(ostream& os, vtkIndent indent) override;
+
+  vtkMRMLImagePositioningNode* GetOrCreateImagePositioningNode();
+ // void SetDrrNode(vtkMRMLScalarVolumeNode* drrNode);
+  void SetXrayNode(vtkMRMLScalarVolumeNode* xrayNode);
+  void SetActiveOrientation(int orientation);
+  vtkMRMLLinearTransformNode* GetActiveXrayTransformNode();
+  void ApplyXray2DTransform(double horizontalOffsetMm, double verticalOffsetMm, double rotationDeg, int orientation);
 
 protected:
   vtkSlicerImagePositioningLogic();

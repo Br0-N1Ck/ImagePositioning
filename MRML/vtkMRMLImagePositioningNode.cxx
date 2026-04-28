@@ -10,15 +10,20 @@
 //#include <vtkObjectFactory.h>
 #include <vtkSmartPointer.h>
 
+#include <cstdlib>
+#include <string>
+
 
 #include "vtkMRMLImagePositioningNode.h"
 
 //------------------------------------------------------------------------------
 namespace
 {
-    static const char* TRANSFORM_NODE_REFERENCE_ROLE = "transformNodeRef";
+    static const char* HORIZONTAL_TRANSFORM_NODE_REFERENCE_ROLE = "horizontalTransformNodeRef";
+    static const char* VERTICAL_TRANSFORM_NODE_REFERENCE_ROLE = "verticalTransformNodeRef";
     static const char* DRR_NODE_REFERENCE_ROLE = "drrNodeRef";
     static const char* XRAY_NODE_REFERENCE_ROLE = "xrayNodeRef";
+    static const char* ACTIVE_ORIENTATION_ATTRIBUTE_NAME = "ActiveOrientation";
 
 }
 
@@ -35,7 +40,8 @@ vtkMRMLImagePositioningNode::vtkMRMLImagePositioningNode()
 //----------------------------------------------------------------------------
 vtkMRMLImagePositioningNode::~vtkMRMLImagePositioningNode()
 {
-    this->SetAndObserveTransformNode(nullptr);
+    this->SetAndObserveHorizontalTransformNode(nullptr);
+    this->SetAndObserveVerticalTransformNode(nullptr);
     this->SetAndObserveDrrNode(nullptr);
     this->SetAndObserveXrayNode(nullptr);
 }
@@ -88,7 +94,7 @@ void vtkMRMLImagePositioningNode::Copy(vtkMRMLNode* anode)
 
     vtkMRMLCopyBeginMacro(node);
 
-     // add new parameters here
+    this->SetActiveOrientation(node->GetActiveOrientation());
     vtkMRMLCopyEndMacro();
 
     this->EndModify(disabledModify);
@@ -110,8 +116,7 @@ void vtkMRMLImagePositioningNode::CopyContent(vtkMRMLNode* anode, bool deepCopy/
 
     vtkMRMLCopyBeginMacro(node);
 
-
-     // add new parameters here
+    this->SetActiveOrientation(node->GetActiveOrientation());
     vtkMRMLCopyEndMacro();
 }
 
@@ -121,9 +126,11 @@ void vtkMRMLImagePositioningNode::PrintSelf(ostream& os, vtkIndent indent)
 
     vtkMRMLPrintBeginMacro(os, indent);
 
-    os << indent << "TransformNode: " << (this->GetTransformNode() ? this->GetTransformNode()->GetName() : "null") << "\n";
+    os << indent << "HorizontalTransformNode: " << (this->GetHorizontalTransformNode() ? this->GetHorizontalTransformNode()->GetName() : "null") << "\n";
+    os << indent << "VerticalTransformNode: " << (this->GetVerticalTransformNode() ? this->GetVerticalTransformNode()->GetName() : "null") << "\n";
     os << indent << "DrrNode: " << (this->GetDrrNode() ? this->GetDrrNode()->GetName() : "null") << "\n";
     os << indent << "XrayNode: " << (this->GetXrayNode() ? this->GetXrayNode()->GetName() : "null") << "\n";
+    os << indent << "ActiveOrientation: " << this->GetActiveOrientation() << "\n";
 
     // add new parameters here
     vtkMRMLPrintEndMacro();
@@ -147,9 +154,24 @@ void vtkMRMLImagePositioningNode::ProcessMRMLEvents(vtkObject *caller, unsigned 
 }
 */
 
-vtkMRMLLinearTransformNode* vtkMRMLImagePositioningNode::GetTransformNode()
+int vtkMRMLImagePositioningNode::GetActiveOrientation()
 {
-    return vtkMRMLLinearTransformNode::SafeDownCast(this->GetNodeReference(TRANSFORM_NODE_REFERENCE_ROLE));
+    const char* orientationAttributeValue = this->GetAttribute(ACTIVE_ORIENTATION_ATTRIBUTE_NAME);
+    if (!orientationAttributeValue)
+    {
+      return vtkMRMLImagePositioningNode::OrientationHorizontal;
+    }
+    return atoi(orientationAttributeValue);
+}
+
+vtkMRMLLinearTransformNode* vtkMRMLImagePositioningNode::GetHorizontalTransformNode()
+{
+    return vtkMRMLLinearTransformNode::SafeDownCast(this->GetNodeReference(HORIZONTAL_TRANSFORM_NODE_REFERENCE_ROLE));
+}
+
+vtkMRMLLinearTransformNode* vtkMRMLImagePositioningNode::GetVerticalTransformNode()
+{
+    return vtkMRMLLinearTransformNode::SafeDownCast(this->GetNodeReference(VERTICAL_TRANSFORM_NODE_REFERENCE_ROLE));
 }
 
 vtkMRMLScalarVolumeNode* vtkMRMLImagePositioningNode::GetDrrNode()
@@ -163,7 +185,12 @@ vtkMRMLScalarVolumeNode* vtkMRMLImagePositioningNode::GetXrayNode()
 }
 
 
-void vtkMRMLImagePositioningNode::SetAndObserveTransformNode(vtkMRMLLinearTransformNode* node)
+void vtkMRMLImagePositioningNode::SetActiveOrientation(int orientation)
+{
+    this->SetAttribute(ACTIVE_ORIENTATION_ATTRIBUTE_NAME, std::to_string(orientation).c_str());
+}
+
+void vtkMRMLImagePositioningNode::SetAndObserveHorizontalTransformNode(vtkMRMLLinearTransformNode* node)
 {
     if (node && this->Scene != node->GetScene())
     {
@@ -171,9 +198,18 @@ void vtkMRMLImagePositioningNode::SetAndObserveTransformNode(vtkMRMLLinearTransf
         return;
     }
 
-    this->SetNodeReferenceID(TRANSFORM_NODE_REFERENCE_ROLE, (node ? node->GetID() : nullptr));
+    this->SetNodeReferenceID(HORIZONTAL_TRANSFORM_NODE_REFERENCE_ROLE, (node ? node->GetID() : nullptr));
+}
 
-    //  this->Modified();
+void vtkMRMLImagePositioningNode::SetAndObserveVerticalTransformNode(vtkMRMLLinearTransformNode* node)
+{
+    if (node && this->Scene != node->GetScene())
+    {
+        vtkErrorMacro("Cannot set reference: the referenced and referencing node are not in the same scene");
+        return;
+    }
+
+    this->SetNodeReferenceID(VERTICAL_TRANSFORM_NODE_REFERENCE_ROLE, (node ? node->GetID() : nullptr));
 }
 
 void vtkMRMLImagePositioningNode::SetAndObserveDrrNode(vtkMRMLScalarVolumeNode* node)
@@ -185,10 +221,6 @@ void vtkMRMLImagePositioningNode::SetAndObserveDrrNode(vtkMRMLScalarVolumeNode* 
     }
 
     this->SetNodeReferenceID(DRR_NODE_REFERENCE_ROLE, (node ? node->GetID() : nullptr));
-
-    // this->FiducialNode = node;
-
-    // this->Modified();
 }
 
 void vtkMRMLImagePositioningNode::SetAndObserveXrayNode(vtkMRMLScalarVolumeNode* node)
@@ -200,8 +232,4 @@ void vtkMRMLImagePositioningNode::SetAndObserveXrayNode(vtkMRMLScalarVolumeNode*
     }
 
     this->SetNodeReferenceID(XRAY_NODE_REFERENCE_ROLE, (node ? node->GetID() : nullptr));
-
-    // this->FiducialNode = node;
-
-    // this->Modified();
 }

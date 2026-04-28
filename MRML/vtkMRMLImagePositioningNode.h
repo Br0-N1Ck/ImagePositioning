@@ -14,6 +14,12 @@
 class VTK_SLICER_IMAGEPOSITIONING_MODULE_MRML_EXPORT vtkMRMLImagePositioningNode : public vtkMRMLNode
 {
 public:
+    enum OrientationType
+    {
+      OrientationHorizontal = 0,
+      OrientationVertical = 1
+    };
+
     static vtkMRMLImagePositioningNode* New();
     vtkTypeMacro(vtkMRMLImagePositioningNode, vtkMRMLNode);
     void PrintSelf(ostream& os, vtkIndent indent) override;
@@ -40,11 +46,15 @@ public:
     /// Handles events registered in the observer manager
 //    void ProcessMRMLEvents(vtkObject *caller, unsigned long eventID, void *callData) override;
 
-    vtkMRMLLinearTransformNode* GetTransformNode();
+    int GetActiveOrientation();
+    vtkMRMLLinearTransformNode* GetHorizontalTransformNode();
+    vtkMRMLLinearTransformNode* GetVerticalTransformNode();
     vtkMRMLScalarVolumeNode* GetDrrNode();
     vtkMRMLScalarVolumeNode* GetXrayNode();
 
-    void SetAndObserveTransformNode(vtkMRMLLinearTransformNode* node);
+    void SetActiveOrientation(int orientation);
+    void SetAndObserveHorizontalTransformNode(vtkMRMLLinearTransformNode* node);
+    void SetAndObserveVerticalTransformNode(vtkMRMLLinearTransformNode* node);
     void SetAndObserveDrrNode(vtkMRMLScalarVolumeNode* node);
     void SetAndObserveXrayNode(vtkMRMLScalarVolumeNode* node);
 

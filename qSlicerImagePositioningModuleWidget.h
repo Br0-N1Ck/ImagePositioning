@@ -24,10 +24,8 @@
 #include "qSlicerImagePositioningModuleExport.h"
 
 class qSlicerImagePositioningModuleWidgetPrivate;
-class vtkMRMLNode;
-class vtkMRMLScene;
+class vtkMRMLNode; 
 class vtkMRMLScalarVolumeNode;
-class vtkMRMLLinearTransformNode;
 
 class Q_SLICER_QTMODULES_IMAGEPOSITIONING_EXPORT qSlicerImagePositioningModuleWidget :
   public qSlicerAbstractModuleWidget
@@ -42,6 +40,8 @@ public:
 
 public slots:
 
+  void setMRMLScene(vtkMRMLScene*) override;
+  void setParameterNode(vtkMRMLNode*);
   void onSetViewClicked();
   void onSetCustomLayoutClicked();
   void onHorizontalImageClicked();
@@ -61,13 +61,12 @@ public slots:
   void onHorizontalTransformChanged(double value);
   void onVerticalTransformChanged(double value);
   void onRotationTransformChanged(double value);
+
+  void updateWidgetFromMRML();
 protected:
   QScopedPointer<qSlicerImagePositioningModuleWidgetPrivate> d_ptr;
-
   void setup() override;
   void setXrayNode(vtkMRMLScalarVolumeNode* xrayNode);
-  vtkMRMLLinearTransformNode* getOrCreateNamedTransformNode(vtkMRMLScene* scene, const char* name);
-  vtkMRMLLinearTransformNode* getActiveXrayTransformNode();
   void updateXrayTransformFrom2DControls();
   void sync2DControlsFromActiveOrientation();
 

@@ -24,6 +24,7 @@
 #include "ui_qSlicerImagePositioningModuleWidget.h"
 
 // MRML includes
+#include <vtkMRMLImagePositioningNode.h>
 #include <vtkMRMLScene.h>
 #include <vtkMRMLLayoutNode.h>
 #include <vtkMRMLLayoutLogic.h>
@@ -33,8 +34,6 @@
 #include <vtkMRMLScalarVolumeDisplayNode.h>
 #include <vtkMRMLLinearTransformNode.h>
 #include <vtkMRMLSliceCompositeNode.h>
-#include <vtkMRMLTransformNode.h>
-#include <vtkImageData.h>
 
 
 // Slicer includes
@@ -43,9 +42,7 @@
 #include <qSlicerApplication.h>
 #include <qMRMLSliceWidget.h>
 
-#include <vtkTransform.h>
 #include <vtkMatrix4x4.h>
-#include <vtkNew.h>
 
 // Logic includes
 #include <vtkSlicerImagePositioningLogic.h>
@@ -55,18 +52,16 @@ class QAbstractButton;
 //-----------------------------------------------------------------------------
 class qSlicerImagePositioningModuleWidgetPrivate: public Ui_qSlicerImagePositioningModuleWidget
 {
+    Q_DECLARE_PUBLIC(qSlicerImagePositioningModuleWidget);
+protected:
+    qSlicerImagePositioningModuleWidget* const q_ptr;
 public:
-  qSlicerImagePositioningModuleWidgetPrivate();
-  enum BeamOrientation
-  {
-    BeamOrientationNone = 0,
-    BeamOrientationHorizontal,
-    BeamOrientationVertical
-  };
+  qSlicerImagePositioningModuleWidgetPrivate(qSlicerImagePositioningModuleWidget& object);
+  virtual ~qSlicerImagePositioningModuleWidgetPrivate();
   struct Pose2D
   {
-    double HorizontalOffsetMm = 0.0;
-    double VerticalOffsetMm = 0.0;
+    double HorizontalOffset = 0.0;
+    double VerticalOffset = 0.0;
     double RotationDeg = 0.0;
   };
 
@@ -128,13 +123,9 @@ public:
     "</layout>";
   const int GENERIC_LAYOUT_ID = 1020;
   int PreviousLayoutId = -1;
-  BeamOrientation ActiveOrientation = BeamOrientationNone;
   Pose2D HorizontalPose;
   Pose2D VerticalPose;
-  vtkMRMLLinearTransformNode* HorizontalImageTransformNode = nullptr;
-  vtkMRMLLinearTransformNode* VerticalImageTransformNode = nullptr;
-
-//  vtkSmartPointer<vtkMRMLImagePositioningNode> ImagePositioningNode;
+  vtkSmartPointer<vtkMRMLImagePositioningNode> ParameterNode;
   vtkSlicerImagePositioningLogic* logic() const;
 };
 
@@ -142,8 +133,22 @@ public:
 // qSlicerImagePositioningModuleWidgetPrivate methods
 
 //-----------------------------------------------------------------------------
-qSlicerImagePositioningModuleWidgetPrivate::qSlicerImagePositioningModuleWidgetPrivate()
+qSlicerImagePositioningModuleWidgetPrivate::qSlicerImagePositioningModuleWidgetPrivate(qSlicerImagePositioningModuleWidget& object)
+    :
+    q_ptr(&object)
 {
+}
+
+qSlicerImagePositioningModuleWidgetPrivate::~qSlicerImagePositioningModuleWidgetPrivate()
+{
+}
+
+//-----------------------------------------------------------------------------
+
+vtkSlicerImagePositioningLogic* qSlicerImagePositioningModuleWidgetPrivate::logic() const
+{
+    Q_Q(const qSlicerImagePositioningModuleWidget);
+    return vtkSlicerImagePositioningLogic::SafeDownCast(q->logic());
 }
 
 //-----------------------------------------------------------------------------
@@ -152,7 +157,7 @@ qSlicerImagePositioningModuleWidgetPrivate::qSlicerImagePositioningModuleWidgetP
 //-----------------------------------------------------------------------------
 qSlicerImagePositioningModuleWidget::qSlicerImagePositioningModuleWidget(QWidget* _parent)
   : Superclass( _parent )
-  , d_ptr( new qSlicerImagePositioningModuleWidgetPrivate )
+    , d_ptr(new qSlicerImagePositioningModuleWidgetPrivate(*this))
 {
 }
 
@@ -160,6 +165,8 @@ qSlicerImagePositioningModuleWidget::qSlicerImagePositioningModuleWidget(QWidget
 qSlicerImagePositioningModuleWidget::~qSlicerImagePositioningModuleWidget()
 {
 }
+
+
 
 //-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::setup()
@@ -222,6 +229,83 @@ void qSlicerImagePositioningModuleWidget::setup()
   this->sync2DControlsFromActiveOrientation();
 }
 
+//-----------------------------------------------------------------------------
+void qSlicerImagePositioningModuleWidget::setMRMLScene(vtkMRMLScene* scene)
+{
+    Q_D(qSlicerImagePositioningModuleWidget);
+    this->Superclass::setMRMLScene(scene);
+
+    qvtkReconnect(d->logic(), scene, vtkMRMLScene::EndImportEvent, this, SLOT(onSceneImportedEvent()));
+    qvtkReconnect(d->logic(), scene, vtkMRMLScene::EndCloseEvent, this, SLOT(onSceneClosedEvent()));
+
+    // Find parameters node or create it if there is none in the scene
+    if (scene)
+    {
+        if (d->MRMLNodeComboBox_ParameterSet->currentNode())
+        {
+            this->setParameterNode(d->MRMLNodeComboBox_ParameterSet->currentNode());
+        }
+        else if (vtkMRMLNode* node = scene->GetNthNodeByClass(0, "vtkMRMLImagePositioningNode"))
+        {
+            this->setParameterNode(node);
+        }
+        else
+        {
+            vtkMRMLNode* newNode = scene->AddNewNodeByClass("vtkMRMLImagePositioningNode");
+            this->setParameterNode(newNode);
+        }
+    }
+}
+
+void qSlicerImagePositioningModuleWidget::setParameterNode(vtkMRMLNode* node)
+{
+    Q_D(qSlicerImagePositioningModuleWidget);
+
+    vtkMRMLImagePositioningNode* parameterNode = vtkMRMLImagePositioningNode::SafeDownCast(node);
+
+    // Make sure the parameter set node is selected (in case the function was not called by the selector combobox signal)
+    d->MRMLNodeComboBox_ParameterSet->setCurrentNode(node);
+
+    // Each time the node is modified, the UI widgets are updated
+    //qvtkReconnect(d->ParameterNode, parameterNode, vtkCommand::ModifiedEvent,
+    //    this, SLOT(updateWidgetFromMRML()));
+
+    d->ParameterNode = parameterNode;
+
+
+
+    // Set selected MRML nodes in comboboxes in the parameter set if it was nullptr there
+    // (then in the meantime the comboboxes selected the first one from the scene and we have to set that)
+    //if (d->ParameterNode)
+    //{
+    //    vtkMRMLRTBeamNode* beamNode = vtkMRMLRTBeamNode::SafeDownCast(d->MRMLNodeComboBox_Beam->currentNode());
+    //    d->ParameterNode->SetAndObserveBeamNode(beamNode);
+    //    vtkMRMLRTBeamNode* planNode = vtkMRMLRTBeamNode::SafeDownCast(d->MRMLNodeComboBox_Plan->currentNode());
+    //}
+    this->updateWidgetFromMRML();
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerImagePositioningModuleWidget::updateWidgetFromMRML()
+{
+    Q_D(qSlicerImagePositioningModuleWidget);
+
+    vtkMRMLImagePositioningNode* parameterNode = vtkMRMLImagePositioningNode::SafeDownCast(d->MRMLNodeComboBox_ParameterSet->currentNode());
+
+    if (!this->mrmlScene())
+    {
+        qCritical() << Q_FUNC_INFO << ": Invalid scene";
+        return;
+    }
+
+    if (!parameterNode)
+    {
+        qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+        return;
+    }
+    // TODO
+}
+
 
 void qSlicerImagePositioningModuleWidget::onSetCustomLayoutClicked()
 {
@@ -255,6 +339,11 @@ void qSlicerImagePositioningModuleWidget::onSetCustomLayoutClicked()
 void qSlicerImagePositioningModuleWidget::onSetViewClicked()
 {
   Q_D(qSlicerImagePositioningModuleWidget);
+  if (!d->ParameterNode)
+  {
+      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+      return;
+  }
   if (!d->MRMLNodeComboBox_XrayImage->currentNode() || !d->MRMLNodeComboBox_DrrImage->currentNode())
   {
     qCritical() << Q_FUNC_INFO << ": Invalid Xray or DRR image node";
@@ -306,27 +395,36 @@ void qSlicerImagePositioningModuleWidget::onSetViewClicked()
 void qSlicerImagePositioningModuleWidget::onHorizontalImageClicked()
 {
   Q_D(qSlicerImagePositioningModuleWidget);
-  if (d->PushButton_VerticalImage->isChecked())
+  if (!d->ParameterNode)
+  {
+      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+      return;
+  }
+ /* if (d->PushButton_VerticalImage->isChecked())
   {
     d->PushButton_VerticalImage->setChecked(false);
-  }
-  d->ActiveOrientation = qSlicerImagePositioningModuleWidgetPrivate::BeamOrientationHorizontal;
-//  this->setSliceOrientation();
+  }*/
+
+  d->logic()->SetActiveOrientation(vtkMRMLImagePositioningNode::OrientationHorizontal);
   this->setXrayNode(vtkMRMLScalarVolumeNode::SafeDownCast(d->MRMLNodeComboBox_XrayImage->currentNode()));
   this->sync2DControlsFromActiveOrientation();
   this->updateXrayTransformFrom2DControls();
-
 }
 
 void qSlicerImagePositioningModuleWidget::onVerticalImageClicked()
 {
   Q_D(qSlicerImagePositioningModuleWidget);
-  if (d->PushButton_HorizontalImage->isChecked())
+  if (!d->ParameterNode)
+  {
+      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+      return;
+  }
+ /* if (d->PushButton_HorizontalImage->isChecked())
   {
     d->PushButton_HorizontalImage->setChecked(false);
-  }
-  d->ActiveOrientation = qSlicerImagePositioningModuleWidgetPrivate::BeamOrientationVertical;
-//  this->setSliceOrientation();
+  }*/
+
+  d->logic()->SetActiveOrientation(vtkMRMLImagePositioningNode::OrientationVertical);
   this->setXrayNode(vtkMRMLScalarVolumeNode::SafeDownCast(d->MRMLNodeComboBox_XrayImage->currentNode()));
   this->sync2DControlsFromActiveOrientation();
   this->updateXrayTransformFrom2DControls();
@@ -335,9 +433,16 @@ void qSlicerImagePositioningModuleWidget::onVerticalImageClicked()
 void qSlicerImagePositioningModuleWidget::onDrrImageNodeChanged(vtkMRMLNode* drrImageNode)
 {
   Q_D(qSlicerImagePositioningModuleWidget);
+  if (!d->ParameterNode)
+  {
+      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+      return;
+  }
   if (drrImageNode)
   {
     qDebug() << Q_FUNC_INFO << drrImageNode->GetName();
+
+    d->ParameterNode->SetAndObserveDrrNode(vtkMRMLScalarVolumeNode::SafeDownCast(drrImageNode));
   }
   else 
   {
@@ -355,10 +460,17 @@ void qSlicerImagePositioningModuleWidget::onDrrImageNodeChanged(vtkMRMLNode* drr
 void qSlicerImagePositioningModuleWidget::onXrayImageNodeChanged(vtkMRMLNode* xrayImageNode)
 {
   Q_D(qSlicerImagePositioningModuleWidget);
-  vtkMRMLScalarVolumeNode* xrayVolumeNode = vtkMRMLScalarVolumeNode::SafeDownCast(xrayImageNode);
-  if (d->ActiveOrientation == qSlicerImagePositioningModuleWidgetPrivate::BeamOrientationNone)
+  if (!d->ParameterNode)
   {
-    d->ActiveOrientation = qSlicerImagePositioningModuleWidgetPrivate::BeamOrientationHorizontal;
+      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+      return;
+  }
+  vtkMRMLScalarVolumeNode* xrayVolumeNode = vtkMRMLScalarVolumeNode::SafeDownCast(xrayImageNode);
+
+
+  if (d->ParameterNode->GetActiveOrientation() != vtkMRMLImagePositioningNode::OrientationVertical)
+  {
+    d->logic()->SetActiveOrientation(vtkMRMLImagePositioningNode::OrientationHorizontal);
   }
   this->setXrayNode(xrayVolumeNode);
   this->sync2DControlsFromActiveOrientation();
@@ -383,30 +495,14 @@ void qSlicerImagePositioningModuleWidget::onXrayImageNodeChanged(vtkMRMLNode* xr
 //-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::setXrayNode(vtkMRMLScalarVolumeNode* xrayNode)
 {
+    // TODO: Merge with onXray
   Q_D(qSlicerImagePositioningModuleWidget);
 
   vtkMRMLLinearTransformNode* activeTransformNode = nullptr;
   if (xrayNode)
   {
-    vtkMRMLScene* scene = xrayNode->GetScene();
-    if (!scene)
-    {
-      qCritical() << Q_FUNC_INFO << ": Xray node has no scene";
-    }
-    else
-    {
-      d->HorizontalImageTransformNode = this->getOrCreateNamedTransformNode(scene, "XrayTransformHorizontal");
-      d->VerticalImageTransformNode = this->getOrCreateNamedTransformNode(scene, "XrayTransformVertical");
-      activeTransformNode = this->getActiveXrayTransformNode();
-      if (!activeTransformNode)
-      {
-        activeTransformNode = d->HorizontalImageTransformNode;
-      }
-      if (activeTransformNode)
-      {
-        xrayNode->SetAndObserveTransformNodeID(activeTransformNode->GetID());
-      }
-    }
+    d->logic()->SetXrayNode(xrayNode);
+    activeTransformNode = d->logic()->GetActiveXrayTransformNode();
   }
 
   d->MRMLMatrixWidget_TransformMatrix->setMRMLTransformNode(activeTransformNode);
@@ -422,128 +518,54 @@ void qSlicerImagePositioningModuleWidget::setXrayNode(vtkMRMLScalarVolumeNode* x
   d->PushButton_Clockwise->setEnabled(hasTransform);
   d->PushButton_CounterClockwise->setEnabled(hasTransform);
   d->PushButton_Reset->setEnabled(hasTransform);
-  d->MRMLCoordinatesWidget_TranslatePosition->setEnabled(hasTransform);
-}
-
-//-----------------------------------------------------------------------------
-vtkMRMLLinearTransformNode* qSlicerImagePositioningModuleWidget::getOrCreateNamedTransformNode(
-  vtkMRMLScene* scene, const char* name)
-{
-  if (!scene || !name)
-  {
-    return nullptr;
-  }
-
-  vtkMRMLLinearTransformNode* linearTransformNode =
-    vtkMRMLLinearTransformNode::SafeDownCast(scene->GetFirstNodeByName(name));
-  if (linearTransformNode)
-  {
-    return linearTransformNode;
-  }
-
-  vtkNew<vtkMRMLLinearTransformNode> newTransformNode;
-  newTransformNode->SetName(name);
-  scene->AddNode(newTransformNode);
-  return newTransformNode.GetPointer();
-}
-
-//-----------------------------------------------------------------------------
-vtkMRMLLinearTransformNode* qSlicerImagePositioningModuleWidget::getActiveXrayTransformNode()
-{
-  Q_D(qSlicerImagePositioningModuleWidget);
-  if (d->ActiveOrientation == qSlicerImagePositioningModuleWidgetPrivate::BeamOrientationVertical)
-  {
-    return d->VerticalImageTransformNode;
-  }
-  return d->HorizontalImageTransformNode;
+ // d->MRMLCoordinatesWidget_TranslatePosition->setEnabled(hasTransform);
 }
 
 //-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::sync2DControlsFromActiveOrientation()
 {
   Q_D(qSlicerImagePositioningModuleWidget);
+  if (!d->ParameterNode)
+  {
+      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+      return;
+  }
+  int orientation = d->ParameterNode->GetActiveOrientation();
   qSlicerImagePositioningModuleWidgetPrivate::Pose2D* pose = &d->HorizontalPose;
-  if (d->ActiveOrientation == qSlicerImagePositioningModuleWidgetPrivate::BeamOrientationVertical)
+  if (orientation == vtkMRMLImagePositioningNode::OrientationVertical)
   {
     pose = &d->VerticalPose;
   }
   QSignalBlocker horizontalBlocker(d->MRMLSliderWidget_HorizontalTransform);
   QSignalBlocker verticalBlocker(d->MRMLSliderWidget_VerticalTransform);
   QSignalBlocker rotationBlocker(d->MRMLSliderWidget_Rotation);
-  d->MRMLSliderWidget_HorizontalTransform->setValue(pose->HorizontalOffsetMm);
-  d->MRMLSliderWidget_VerticalTransform->setValue(pose->VerticalOffsetMm);
+  d->MRMLSliderWidget_HorizontalTransform->setValue(pose->HorizontalOffset);
+  d->MRMLSliderWidget_VerticalTransform->setValue(pose->VerticalOffset);
   d->MRMLSliderWidget_Rotation->setValue(pose->RotationDeg);
 }
 
 //-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::updateXrayTransformFrom2DControls()
 {
+    // TODO: Clean up
   Q_D(qSlicerImagePositioningModuleWidget);
-  vtkMRMLScalarVolumeNode* xrayNode = vtkMRMLScalarVolumeNode::SafeDownCast(d->MRMLNodeComboBox_XrayImage->currentNode());
-  vtkMRMLLinearTransformNode* activeTransformNode = this->getActiveXrayTransformNode();
-  if (!xrayNode || !activeTransformNode)
+  if (!d->ParameterNode)
   {
-    return;
-  }
-
-  vtkImageData* imageData = xrayNode->GetImageData();
-  if (!imageData)
-  {
-    qCritical() << Q_FUNC_INFO << ": Xray node has no image data";
-    return;
+      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+      return;
   }
 
   qSlicerImagePositioningModuleWidgetPrivate::Pose2D* pose = &d->HorizontalPose;
-  bool isHorizontal = true;
-  if (d->ActiveOrientation == qSlicerImagePositioningModuleWidgetPrivate::BeamOrientationVertical)
+  int orientation = d->ParameterNode->GetActiveOrientation();
+  if (orientation == vtkMRMLImagePositioningNode::OrientationVertical)
   {
     pose = &d->VerticalPose;
-    isHorizontal = false;
   }
 
-  double eHorizontal[3] = { 0.0, 0.0, 1.0 };
-  double eVertical[3] = { 0.0, 1.0, 0.0 };
-  double normal[3] = { 1.0, 0.0, 0.0 };
-  if (!isHorizontal)
-  {
-    eHorizontal[0] = 1.0; eHorizontal[1] = 0.0; eHorizontal[2] = 0.0; // L-R
-    eVertical[0] = 0.0; eVertical[1] = 0.0; eVertical[2] = 1.0;       // S-I
-    normal[0] = 0.0; normal[1] = -1.0; normal[2] = 0.0;               // A-P
-  }
-
-  double translationRAS[3] =
-  {
-    pose->HorizontalOffsetMm * eHorizontal[0] + pose->VerticalOffsetMm * eVertical[0],
-    pose->HorizontalOffsetMm * eHorizontal[1] + pose->VerticalOffsetMm * eVertical[1],
-    pose->HorizontalOffsetMm * eHorizontal[2] + pose->VerticalOffsetMm * eVertical[2]
-  };
-  // ^ Simplify this crap
-
-  int dimensions[3] = { 0, 0, 0 };
-  imageData->GetDimensions(dimensions);
-  double centerIJK[4] =
-  {
-    0.5 * static_cast<double>(dimensions[0] - 1),
-    0.5 * static_cast<double>(dimensions[1] - 1),
-    0.5 * static_cast<double>(dimensions[2] - 1),
-    1.0
-  };
-  vtkNew<vtkMatrix4x4> ijkToRASMatrix;
-  xrayNode->GetIJKToRASMatrix(ijkToRASMatrix);
-  double centerRAS4[4] = { 0.0, 0.0, 0.0, 1.0 };
-  ijkToRASMatrix->MultiplyPoint(centerIJK, centerRAS4);
-
-  vtkNew<vtkTransform> xrayTransform;
- // xrayTransform->PostMultiply();
-  xrayTransform->Identity();
-  xrayTransform->Translate(centerRAS4[0], centerRAS4[1], centerRAS4[2]);
-  xrayTransform->Translate(translationRAS[0], translationRAS[1], translationRAS[2]);
-  xrayTransform->RotateWXYZ(pose->RotationDeg, normal);
-  xrayTransform->Translate(-centerRAS4[0], -centerRAS4[1], -centerRAS4[2]);
-
-  activeTransformNode->SetMatrixTransformToParent(xrayTransform->GetMatrix());
-  d->MRMLCoordinatesWidget_TranslatePosition->setCoordinates(translationRAS);
-  d->MRMLMatrixWidget_TransformMatrix->setMRMLTransformNode(activeTransformNode);
+  d->logic()->ApplyXray2DTransform(
+    pose->HorizontalOffset, pose->VerticalOffset, pose->RotationDeg, orientation);
+  //d->MRMLCoordinatesWidget_TranslatePosition->setCoordinates(translationRAS);
+  d->MRMLMatrixWidget_TransformMatrix->setMRMLTransformNode(d->logic()->GetActiveXrayTransformNode());
 }
 
 //-----------------------------------------------------------------------------
@@ -598,7 +620,13 @@ void qSlicerImagePositioningModuleWidget::onRotateCounterClockwiseClicked()
 void qSlicerImagePositioningModuleWidget::onResetTransformClicked()
 {
   Q_D(qSlicerImagePositioningModuleWidget);
-  if (d->ActiveOrientation == qSlicerImagePositioningModuleWidgetPrivate::BeamOrientationVertical)
+  if (!d->ParameterNode)
+  {
+      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+      return;
+  }
+  int orientation = d->ParameterNode->GetActiveOrientation();
+  if (orientation == vtkMRMLImagePositioningNode::OrientationVertical)
   {
     d->VerticalPose = qSlicerImagePositioningModuleWidgetPrivate::Pose2D();
   }
@@ -614,13 +642,19 @@ void qSlicerImagePositioningModuleWidget::onResetTransformClicked()
 void qSlicerImagePositioningModuleWidget::onHorizontalTransformChanged(double value)
 {
   Q_D(qSlicerImagePositioningModuleWidget);
-  if (d->ActiveOrientation == qSlicerImagePositioningModuleWidgetPrivate::BeamOrientationVertical)
+  if (!d->ParameterNode)
   {
-    d->VerticalPose.HorizontalOffsetMm = value;
+      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+      return;
+  }
+  int orientation = d->ParameterNode->GetActiveOrientation();
+  if (orientation == vtkMRMLImagePositioningNode::OrientationVertical)
+  {
+    d->VerticalPose.HorizontalOffset = value;
   }
   else
   {
-    d->HorizontalPose.HorizontalOffsetMm = value;
+    d->HorizontalPose.HorizontalOffset = value;
   }
   this->updateXrayTransformFrom2DControls();
 }
@@ -629,13 +663,19 @@ void qSlicerImagePositioningModuleWidget::onHorizontalTransformChanged(double va
 void qSlicerImagePositioningModuleWidget::onVerticalTransformChanged(double value)
 {
   Q_D(qSlicerImagePositioningModuleWidget);
-  if (d->ActiveOrientation == qSlicerImagePositioningModuleWidgetPrivate::BeamOrientationVertical)
+  if (!d->ParameterNode)
   {
-    d->VerticalPose.VerticalOffsetMm = value;
+      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+      return;
+  }
+  int orientation = d->ParameterNode->GetActiveOrientation();
+  if (orientation == vtkMRMLImagePositioningNode::OrientationVertical)
+  {
+    d->VerticalPose.VerticalOffset = value;
   }
   else
   {
-    d->HorizontalPose.VerticalOffsetMm = value;
+    d->HorizontalPose.VerticalOffset = value;
   }
   this->updateXrayTransformFrom2DControls();
 }
@@ -644,7 +684,13 @@ void qSlicerImagePositioningModuleWidget::onVerticalTransformChanged(double valu
 void qSlicerImagePositioningModuleWidget::onRotationTransformChanged(double value)
 {
   Q_D(qSlicerImagePositioningModuleWidget);
-  if (d->ActiveOrientation == qSlicerImagePositioningModuleWidgetPrivate::BeamOrientationVertical)
+  if (!d->ParameterNode)
+  {
+      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+      return;
+  }
+  int orientation = d->ParameterNode->GetActiveOrientation();
+  if (orientation == vtkMRMLImagePositioningNode::OrientationVertical)
   {
     d->VerticalPose.RotationDeg = value;
   }
@@ -705,13 +751,13 @@ void qSlicerImagePositioningModuleWidget::setSliceOrientation()
   double N[3];
   double T[3];
 
-  if (d->PushButton_HorizontalImage->isChecked() && !d->PushButton_VerticalImage->isChecked())
+  if (d->ParameterNode->GetActiveOrientation() == vtkMRMLImagePositioningNode::OrientationHorizontal)
   {
     // Horizontal
     N[0] = -1.0; N[1] = 0.0; N[2] = 0.0; // Normal: Left -> Right
     T[0] = 0.0; T[1] = 0.0; T[2] = 1.0; // Up: Anterior
   }
-  else if (d->PushButton_VerticalImage->isChecked() && !d->PushButton_HorizontalImage->isChecked())
+  else if (d->ParameterNode->GetActiveOrientation() == vtkMRMLImagePositioningNode::OrientationVertical)
   {
     // Vertical
     N[0] = 0.0; N[1] = -1.0; N[2] = 0.0; // Normal: Anterior -> Posterior
