@@ -165,22 +165,6 @@
     </widget>
    </item>
    <item>
-    <widget class="QPushButton" name="PushButton_SetView">
-     <property name="enabled">
-      <bool>false</bool>
-     </property>
-     <property name="text">
-      <string>Set slice view</string>
-     </property>
-     <property name="checkable">
-      <bool>false</bool>
-     </property>
-     <property name="checked">
-      <bool>false</bool>
-     </property>
-    </widget>
-   </item>
-   <item>
     <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_3">
      <property name="title">
       <string>Xray scaling</string>
@@ -236,6 +220,22 @@
        </layout>
       </item>
      </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="PushButton_SetView">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+     <property name="text">
+      <string>Set slice view</string>
+     </property>
+     <property name="checkable">
+      <bool>false</bool>
+     </property>
+     <property name="checked">
+      <bool>false</bool>
+     </property>
     </widget>
    </item>
    <item>

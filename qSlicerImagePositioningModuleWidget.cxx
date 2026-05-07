@@ -346,7 +346,7 @@ void qSlicerImagePositioningModuleWidget::onSetViewClicked()
       qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
       return;
   }
-  if (!d->MRMLNodeComboBox_XrayImage->currentNode() || !d->MRMLNodeComboBox_DrrImage->currentNode())
+  if (!d->ParameterNode->GetXrayNode() || !d->ParameterNode->GetDrrNode())
   {
     qCritical() << Q_FUNC_INFO << ": Invalid Xray or DRR image node";
     return;
@@ -359,8 +359,10 @@ void qSlicerImagePositioningModuleWidget::onSetViewClicked()
   // DRR - background, XRay - foreground
   if (layoutManager->layout() == 1020)
   {
-      vtkMRMLScalarVolumeNode* xrayImageNode = vtkMRMLScalarVolumeNode::SafeDownCast(d->MRMLNodeComboBox_XrayImage->currentNode());
-      vtkMRMLScalarVolumeNode* drrImageNode = vtkMRMLScalarVolumeNode::SafeDownCast(d->MRMLNodeComboBox_DrrImage->currentNode());
+      vtkMRMLScalarVolumeNode* xrayImageNode = d->ParameterNode->GetXrayNode();
+      vtkMRMLScalarVolumeNode* drrImageNode = d->ParameterNode->GetDrrNode();
+
+      this->setXrayNode(xrayImageNode);
 
       qMRMLSliceWidget* sliceWidget = layoutManager->sliceWidget("XrayDetectorSlice");
       vtkMRMLSliceNode* sliceNode = sliceWidget->mrmlSliceNode();
@@ -372,7 +374,7 @@ void qSlicerImagePositioningModuleWidget::onSetViewClicked()
       sliceLogic->RotateSliceToLowestVolumeAxes(); // Reformat 
       sliceLogic->FitSliceToAll();
       sliceNode->UpdateMatrices();
-      setSliceOrientation();
+      this->setSliceOrientation();
 
       // Change color of images
       vtkMRMLScalarVolumeDisplayNode* drrDisplayNode = vtkMRMLScalarVolumeDisplayNode::SafeDownCast(drrImageNode->GetDisplayNode());
@@ -397,13 +399,6 @@ void qSlicerImagePositioningModuleWidget::onSetViewClicked()
 void qSlicerImagePositioningModuleWidget::onScaleXrayImageClicked()
 {
     Q_D(qSlicerImagePositioningModuleWidget);
-    //if (!d->ParameterNode)
-    //{
-    //    qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
-    //    return;
-    //}
-
-    // Read source-to-imager distance from UI slider
     double sourceToImagerMm = d->MRMLSliderWidget_SID->value();
 
     d->logic()->AlignAndScaleXrayToDrr(sourceToImagerMm);
@@ -418,13 +413,9 @@ void qSlicerImagePositioningModuleWidget::onHorizontalImageClicked()
       qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
       return;
   }
- /* if (d->PushButton_VerticalImage->isChecked())
-  {
-    d->PushButton_VerticalImage->setChecked(false);
-  }*/
 
   d->logic()->SetActiveOrientation(vtkMRMLImagePositioningNode::OrientationHorizontal);
-  this->setXrayNode(vtkMRMLScalarVolumeNode::SafeDownCast(d->MRMLNodeComboBox_XrayImage->currentNode()));
+  this->setXrayNode(d->ParameterNode->GetXrayNode());
   this->sync2DControlsFromActiveOrientation();
   this->updateXrayTransformFrom2DControls();
 }
@@ -437,13 +428,9 @@ void qSlicerImagePositioningModuleWidget::onVerticalImageClicked()
       qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
       return;
   }
- /* if (d->PushButton_HorizontalImage->isChecked())
-  {
-    d->PushButton_HorizontalImage->setChecked(false);
-  }*/
 
   d->logic()->SetActiveOrientation(vtkMRMLImagePositioningNode::OrientationVertical);
-  this->setXrayNode(vtkMRMLScalarVolumeNode::SafeDownCast(d->MRMLNodeComboBox_XrayImage->currentNode()));
+  this->setXrayNode(d->ParameterNode->GetXrayNode());
   this->sync2DControlsFromActiveOrientation();
   this->updateXrayTransformFrom2DControls();
 }
@@ -458,8 +445,6 @@ void qSlicerImagePositioningModuleWidget::onDrrImageNodeChanged(vtkMRMLNode* drr
   }
   if (drrImageNode)
   {
-    qDebug() << Q_FUNC_INFO << drrImageNode->GetName();
-
     d->ParameterNode->SetAndObserveDrrNode(vtkMRMLScalarVolumeNode::SafeDownCast(drrImageNode));
   }
   else 
@@ -469,7 +454,7 @@ void qSlicerImagePositioningModuleWidget::onDrrImageNodeChanged(vtkMRMLNode* drr
     return;
   }
 
-  if (d->MRMLNodeComboBox_XrayImage->currentNode() && d->MRMLNodeComboBox_DrrImage->currentNode())
+  if (d->ParameterNode->GetXrayNode() && d->ParameterNode->GetDrrNode())
   {
     d->PushButton_SetView->setEnabled(true);
     d->PushButton_ScaleXrayImage->setEnabled(true);
@@ -485,20 +470,20 @@ void qSlicerImagePositioningModuleWidget::onXrayImageNodeChanged(vtkMRMLNode* xr
       qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
       return;
   }
-  vtkMRMLScalarVolumeNode* xrayVolumeNode = vtkMRMLScalarVolumeNode::SafeDownCast(xrayImageNode);
+  //vtkMRMLScalarVolumeNode* xrayVolumeNode = vtkMRMLScalarVolumeNode::SafeDownCast(xrayImageNode);
 
 
-  if (d->ParameterNode->GetActiveOrientation() != vtkMRMLImagePositioningNode::OrientationVertical)
-  {
-    d->logic()->SetActiveOrientation(vtkMRMLImagePositioningNode::OrientationHorizontal);
-  }
-  this->setXrayNode(xrayVolumeNode);
-  this->sync2DControlsFromActiveOrientation();
-  this->updateXrayTransformFrom2DControls();
+  // if (d->ParameterNode->GetActiveOrientation() != vtkMRMLImagePositioningNode::OrientationVertical)
+  // {
+  //   d->logic()->SetActiveOrientation(vtkMRMLImagePositioningNode::OrientationHorizontal);
+  // }
+  //this->setXrayNode(xrayVolumeNode);
+  //this->sync2DControlsFromActiveOrientation();
+  //this->updateXrayTransformFrom2DControls();
 
   if (xrayImageNode)
   {
-    qDebug() << Q_FUNC_INFO << xrayImageNode->GetName();
+    d->ParameterNode->SetAndObserveXrayNode(vtkMRMLScalarVolumeNode::SafeDownCast(xrayImageNode));
   }
   else
   {
@@ -506,7 +491,7 @@ void qSlicerImagePositioningModuleWidget::onXrayImageNodeChanged(vtkMRMLNode* xr
     d->PushButton_SetView->setEnabled(false);
     return;
   }
-  if (d->MRMLNodeComboBox_XrayImage->currentNode() && d->MRMLNodeComboBox_DrrImage->currentNode())
+  if (d->ParameterNode->GetXrayNode() && d->ParameterNode->GetDrrNode())
   {
     d->PushButton_SetView->setEnabled(true);
     d->PushButton_ScaleXrayImage->setEnabled(true);
@@ -517,7 +502,6 @@ void qSlicerImagePositioningModuleWidget::onXrayImageNodeChanged(vtkMRMLNode* xr
 //-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::setXrayNode(vtkMRMLScalarVolumeNode* xrayNode)
 {
-    // TODO: Merge with onXray
   Q_D(qSlicerImagePositioningModuleWidget);
 
   vtkMRMLLinearTransformNode* activeTransformNode = nullptr;
@@ -526,6 +510,7 @@ void qSlicerImagePositioningModuleWidget::setXrayNode(vtkMRMLScalarVolumeNode* x
     d->logic()->SetXrayNode(xrayNode);
     activeTransformNode = d->logic()->GetActiveXrayTransformNode();
   }
+
 
   d->MRMLMatrixWidget_TransformMatrix->setMRMLTransformNode(activeTransformNode);
   const bool hasTransform = (activeTransformNode != nullptr);
