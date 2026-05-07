@@ -52,7 +52,11 @@ public:
   void SetXrayNode(vtkMRMLScalarVolumeNode* xrayNode);
   void SetActiveOrientation(int orientation);
   vtkMRMLLinearTransformNode* GetActiveXrayTransformNode();
+  vtkMRMLLinearTransformNode* GetActiveXrayScaleNode();
   void ApplyXray2DTransform(double horizontalOffsetMm, double verticalOffsetMm, double rotationDeg, int orientation);
+  /// Align Xray along slice normal to match DRR plane and scale it
+  /// by sourceToIsocenterMm/sourceToImagerMm.
+  void AlignAndScaleXrayToDrr(double sourceToImagerMm);
 
 protected:
   vtkSlicerImagePositioningLogic();

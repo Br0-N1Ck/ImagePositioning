@@ -61,6 +61,7 @@ public slots:
   void onHorizontalTransformChanged(double value);
   void onVerticalTransformChanged(double value);
   void onRotationTransformChanged(double value);
+  void onScaleXrayImageClicked();
 
   void updateWidgetFromMRML();
 protected:

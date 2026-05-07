@@ -49,12 +49,16 @@ public:
     int GetActiveOrientation();
     vtkMRMLLinearTransformNode* GetHorizontalTransformNode();
     vtkMRMLLinearTransformNode* GetVerticalTransformNode();
+    vtkMRMLLinearTransformNode* GetHorizontalScaleNode();
+    vtkMRMLLinearTransformNode* GetVerticalScaleNode();
     vtkMRMLScalarVolumeNode* GetDrrNode();
     vtkMRMLScalarVolumeNode* GetXrayNode();
 
     void SetActiveOrientation(int orientation);
     void SetAndObserveHorizontalTransformNode(vtkMRMLLinearTransformNode* node);
     void SetAndObserveVerticalTransformNode(vtkMRMLLinearTransformNode* node);
+    void SetAndObserveHorizontalScaleNode(vtkMRMLLinearTransformNode* node);
+    void SetAndObserveVerticalScaleNode(vtkMRMLLinearTransformNode* node);
     void SetAndObserveDrrNode(vtkMRMLScalarVolumeNode* node);
     void SetAndObserveXrayNode(vtkMRMLScalarVolumeNode* node);
 

@@ -21,6 +21,8 @@ namespace
 {
     static const char* HORIZONTAL_TRANSFORM_NODE_REFERENCE_ROLE = "horizontalTransformNodeRef";
     static const char* VERTICAL_TRANSFORM_NODE_REFERENCE_ROLE = "verticalTransformNodeRef";
+    static const char* HORIZONTAL_SCALE_NODE_REFERENCE_ROLE = "horizontalScaleNodeRef";
+    static const char* VERTICAL_SCALE_NODE_REFERENCE_ROLE = "verticalScaleNodeRef";
     static const char* DRR_NODE_REFERENCE_ROLE = "drrNodeRef";
     static const char* XRAY_NODE_REFERENCE_ROLE = "xrayNodeRef";
     static const char* ACTIVE_ORIENTATION_ATTRIBUTE_NAME = "ActiveOrientation";
@@ -32,9 +34,11 @@ vtkMRMLNodeNewMacro(vtkMRMLImagePositioningNode);
 
 vtkMRMLImagePositioningNode::vtkMRMLImagePositioningNode()
 {
-    vtkNew< vtkTransform > horizTransform, verticalTransform;
+    vtkNew< vtkTransform > horizTransform, verticalTransform, horizScale, verticalScale;
     horizTransform->Identity();
     verticalTransform->Identity();
+    horizScale->Identity();
+    verticalScale->Identity();
 }
 
 //----------------------------------------------------------------------------
@@ -42,6 +46,8 @@ vtkMRMLImagePositioningNode::~vtkMRMLImagePositioningNode()
 {
     this->SetAndObserveHorizontalTransformNode(nullptr);
     this->SetAndObserveVerticalTransformNode(nullptr);
+    this->SetAndObserveHorizontalScaleNode(nullptr);
+    this->SetAndObserveVerticalScaleNode(nullptr);
     this->SetAndObserveDrrNode(nullptr);
     this->SetAndObserveXrayNode(nullptr);
 }
@@ -128,6 +134,8 @@ void vtkMRMLImagePositioningNode::PrintSelf(ostream& os, vtkIndent indent)
 
     os << indent << "HorizontalTransformNode: " << (this->GetHorizontalTransformNode() ? this->GetHorizontalTransformNode()->GetName() : "null") << "\n";
     os << indent << "VerticalTransformNode: " << (this->GetVerticalTransformNode() ? this->GetVerticalTransformNode()->GetName() : "null") << "\n";
+    os << indent << "HorizontalScaleNode: " << (this->GetHorizontalScaleNode() ? this->GetHorizontalScaleNode()->GetName() : "null") << "\n";
+    os << indent << "VerticalScaleNode: " << (this->GetVerticalScaleNode() ? this->GetVerticalScaleNode()->GetName() : "null") << "\n";
     os << indent << "DrrNode: " << (this->GetDrrNode() ? this->GetDrrNode()->GetName() : "null") << "\n";
     os << indent << "XrayNode: " << (this->GetXrayNode() ? this->GetXrayNode()->GetName() : "null") << "\n";
     os << indent << "ActiveOrientation: " << this->GetActiveOrientation() << "\n";
@@ -174,6 +182,15 @@ vtkMRMLLinearTransformNode* vtkMRMLImagePositioningNode::GetVerticalTransformNod
     return vtkMRMLLinearTransformNode::SafeDownCast(this->GetNodeReference(VERTICAL_TRANSFORM_NODE_REFERENCE_ROLE));
 }
 
+vtkMRMLLinearTransformNode* vtkMRMLImagePositioningNode::GetHorizontalScaleNode()
+{
+    return vtkMRMLLinearTransformNode::SafeDownCast(this->GetNodeReference(HORIZONTAL_SCALE_NODE_REFERENCE_ROLE));
+}
+
+vtkMRMLLinearTransformNode* vtkMRMLImagePositioningNode::GetVerticalScaleNode()
+{
+    return vtkMRMLLinearTransformNode::SafeDownCast(this->GetNodeReference(VERTICAL_SCALE_NODE_REFERENCE_ROLE));
+}
 vtkMRMLScalarVolumeNode* vtkMRMLImagePositioningNode::GetDrrNode()
 {
     return vtkMRMLScalarVolumeNode::SafeDownCast(this->GetNodeReference(DRR_NODE_REFERENCE_ROLE));
@@ -212,6 +229,25 @@ void vtkMRMLImagePositioningNode::SetAndObserveVerticalTransformNode(vtkMRMLLine
     this->SetNodeReferenceID(VERTICAL_TRANSFORM_NODE_REFERENCE_ROLE, (node ? node->GetID() : nullptr));
 }
 
+void vtkMRMLImagePositioningNode::SetAndObserveHorizontalScaleNode(vtkMRMLLinearTransformNode* node)
+{
+    if (node && this->Scene != node->GetScene())
+    {
+        vtkErrorMacro("Cannot set reference: the referenced and referencing node are not in the same scene");
+        return;
+    }
+    this->SetNodeReferenceID(HORIZONTAL_SCALE_NODE_REFERENCE_ROLE, (node ? node->GetID() : nullptr));
+}
+
+void vtkMRMLImagePositioningNode::SetAndObserveVerticalScaleNode(vtkMRMLLinearTransformNode* node)
+{
+    if (node && this->Scene != node->GetScene())
+    {
+        vtkErrorMacro("Cannot set reference: the referenced and referencing node are not in the same scene");
+        return;
+    }
+    this->SetNodeReferenceID(VERTICAL_SCALE_NODE_REFERENCE_ROLE, (node ? node->GetID() : nullptr));
+}
 void vtkMRMLImagePositioningNode::SetAndObserveDrrNode(vtkMRMLScalarVolumeNode* node)
 {
     if (node && this->Scene != node->GetScene())

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>465</width>
-    <height>901</height>
+    <width>520</width>
+    <height>904</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -181,7 +181,72 @@
     </widget>
    </item>
    <item>
+    <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_3">
+     <property name="title">
+      <string>Xray scaling</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_7">
+      <item row="0" column="0" colspan="2">
+       <widget class="QPushButton" name="PushButton_ScaleXrayImage">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>Move and scale Xray to DRR</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <layout class="QGridLayout" name="gridLayout_12">
+        <item row="0" column="0">
+         <widget class="QLabel" name="label_8">
+          <property name="text">
+           <string>Source to Imager distance:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="qMRMLSliderWidget" name="MRMLSliderWidget_SID">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="singleStep">
+           <double>1.000000000000000</double>
+          </property>
+          <property name="pageStep">
+           <double>100.000000000000000</double>
+          </property>
+          <property name="minimum">
+           <double>1.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>2000.000000000000000</double>
+          </property>
+          <property name="value">
+           <double>1200.000000000000000</double>
+          </property>
+          <property name="suffix">
+           <string> mm</string>
+          </property>
+          <property name="quantity">
+           <string notr="true"/>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <layout class="QGridLayout" name="gridLayout_3">
+     <item row="0" column="0">
+      <widget class="QLabel" name="label_3">
+       <property name="text">
+        <string>X-ray image opacity:</string>
+       </property>
+      </widget>
+     </item>
      <item row="0" column="1">
       <widget class="qMRMLSliderWidget" name="MRMLSliderWidget_XrayOpacity">
        <property name="enabled">
@@ -198,13 +263,6 @@
        </property>
        <property name="quantity">
         <string notr="true"/>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="0">
-      <widget class="QLabel" name="label_3">
-       <property name="text">
-        <string>X-ray image opacity:</string>
        </property>
       </widget>
      </item>
@@ -322,7 +380,7 @@
            <item row="3" column="0" colspan="2">
             <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_2">
              <property name="title">
-              <string>GroupBox</string>
+              <string>Rotation</string>
              </property>
              <layout class="QGridLayout" name="gridLayout_5">
               <item row="1" column="1">

@@ -217,6 +217,7 @@ void qSlicerImagePositioningModuleWidget::setup()
     this, SLOT(onVerticalTransformChanged(double)));
   QObject::connect(d->MRMLSliderWidget_Rotation, SIGNAL(valueChanged(double)),
     this, SLOT(onRotationTransformChanged(double)));
+  QObject::connect(d->PushButton_ScaleXrayImage, SIGNAL(clicked()), this, SLOT(onScaleXrayImageClicked()));
   QObject::connect(d->PushButton_Up, SIGNAL(clicked()), this, SLOT(onMoveUpClicked()));
   QObject::connect(d->PushButton_Down, SIGNAL(clicked()), this, SLOT(onMoveDownClicked()));
   QObject::connect(d->PushButton_Left, SIGNAL(clicked()), this, SLOT(onMoveLeftClicked()));
@@ -228,6 +229,7 @@ void qSlicerImagePositioningModuleWidget::setup()
   this->setXrayNode(nullptr);
   this->sync2DControlsFromActiveOrientation();
 }
+
 
 //-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::setMRMLScene(vtkMRMLScene* scene)
@@ -383,7 +385,7 @@ void qSlicerImagePositioningModuleWidget::onSetViewClicked()
       // alpha blend = 0
       // add = 2
       // subtract = 3
-      sliceLogic->GetSliceCompositeNode()->SetCompositing(2); // add
+      //sliceLogic->GetSliceCompositeNode()->SetCompositing(2); // add
   }
   else
   {
@@ -391,6 +393,22 @@ void qSlicerImagePositioningModuleWidget::onSetViewClicked()
       return;
   }
 }
+
+void qSlicerImagePositioningModuleWidget::onScaleXrayImageClicked()
+{
+    Q_D(qSlicerImagePositioningModuleWidget);
+    //if (!d->ParameterNode)
+    //{
+    //    qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+    //    return;
+    //}
+
+    // Read source-to-imager distance from UI slider
+    double sourceToImagerMm = d->MRMLSliderWidget_SID->value();
+
+    d->logic()->AlignAndScaleXrayToDrr(sourceToImagerMm);
+}
+
 
 void qSlicerImagePositioningModuleWidget::onHorizontalImageClicked()
 {
@@ -454,6 +472,8 @@ void qSlicerImagePositioningModuleWidget::onDrrImageNodeChanged(vtkMRMLNode* drr
   if (d->MRMLNodeComboBox_XrayImage->currentNode() && d->MRMLNodeComboBox_DrrImage->currentNode())
   {
     d->PushButton_SetView->setEnabled(true);
+    d->PushButton_ScaleXrayImage->setEnabled(true);
+    d->MRMLSliderWidget_SID->setEnabled(true);
   }
 }
 
@@ -489,6 +509,8 @@ void qSlicerImagePositioningModuleWidget::onXrayImageNodeChanged(vtkMRMLNode* xr
   if (d->MRMLNodeComboBox_XrayImage->currentNode() && d->MRMLNodeComboBox_DrrImage->currentNode())
   {
     d->PushButton_SetView->setEnabled(true);
+    d->PushButton_ScaleXrayImage->setEnabled(true);
+    d->MRMLSliderWidget_SID->setEnabled(true);
   }
 }
 
