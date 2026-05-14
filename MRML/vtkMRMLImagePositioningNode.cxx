@@ -1,7 +1,7 @@
 // Qt includes
-#include <QDebug>
+//#include <QDebug>
 
-#include <vtkTransform.h>
+//#include <vtkTransform.h>
 // MRML includes
 #include <vtkMRMLScene.h>
 #include <vtkMRMLScalarVolumeNode.h>
@@ -12,7 +12,6 @@
 
 #include <cstdlib>
 #include <string>
-
 
 #include "vtkMRMLImagePositioningNode.h"
 
@@ -34,11 +33,11 @@ vtkMRMLNodeNewMacro(vtkMRMLImagePositioningNode);
 
 vtkMRMLImagePositioningNode::vtkMRMLImagePositioningNode()
 {
-    vtkNew< vtkTransform > horizTransform, verticalTransform, horizScale, verticalScale;
-    horizTransform->Identity();
-    verticalTransform->Identity();
-    horizScale->Identity();
-    verticalScale->Identity();
+ //   vtkNew< vtkTransform > horizTransform, verticalTransform, horizScale, verticalScale;
+ //   horizTransform->Identity();
+ //   verticalTransform->Identity();
+ //   horizScale->Identity();
+ //   verticalScale->Identity();
 }
 
 //----------------------------------------------------------------------------

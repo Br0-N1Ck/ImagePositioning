@@ -34,7 +34,7 @@
 
 // STD includes
 #include <cassert>
-#include <string>
+//#include <string>
 
 namespace
 {
@@ -285,7 +285,7 @@ void vtkSlicerImagePositioningLogic::ApplyXray2DTransform(
   // Basis vectors depending on orientation
   double eHorizontal[3] = { 0.0, 0.0, 1.0 };
   double eVertical[3] = { 0.0, 1.0, 0.0 };
-  double normal[3] = { 1.0, 0.0, 0.0 };
+  double normal[3] = { -1.0, 0.0, 0.0 };
   if (orientation == vtkMRMLImagePositioningNode::OrientationVertical)
   {
     eHorizontal[0] = 1.0; eHorizontal[1] = 0.0; eHorizontal[2] = 0.0; // L-R
@@ -337,8 +337,7 @@ void vtkSlicerImagePositioningLogic::AlignAndScaleXrayToDrr(double sourceToImage
 
   vtkMRMLScalarVolumeNode* xrayNode = imagePositioningNode->GetXrayNode();
   vtkMRMLScalarVolumeNode* drrNode = imagePositioningNode->GetDrrNode();
-  vtkMRMLLinearTransformNode* activeTransformNode = this->GetActiveXrayTransformNode();
-  if (!xrayNode || !drrNode || !activeTransformNode)
+  if (!xrayNode || !drrNode)
   {
     return;
   }

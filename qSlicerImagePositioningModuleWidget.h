@@ -44,8 +44,8 @@ public slots:
   void setParameterNode(vtkMRMLNode*);
   void onSetViewClicked();
   void onSetCustomLayoutClicked();
-  void onHorizontalImageClicked();
-  void onVerticalImageClicked();
+ // void onHorizontalOrientationClicked();
+ // void onVerticalOrientationClicked();
   void onDrrImageNodeChanged(vtkMRMLNode* drrImageNode);
   void onXrayImageNodeChanged(vtkMRMLNode* xrayImageNode);
 //  void onDrrOpacityChanged(double* opacity);
