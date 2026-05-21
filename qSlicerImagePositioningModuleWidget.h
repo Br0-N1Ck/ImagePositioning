@@ -42,6 +42,7 @@ public slots:
 
   void setMRMLScene(vtkMRMLScene*) override;
   void setParameterNode(vtkMRMLNode*);
+  void onRetrieveDICOMClicked();
   void onSetViewClicked();
   void onSetCustomLayoutClicked();
  // void onHorizontalOrientationClicked();

@@ -447,5 +447,4 @@ void vtkSlicerImagePositioningLogic::AlignAndScaleXrayToDrr(double sourceToImage
     return;
   }
   scaleNode->SetMatrixTransformToParent(transform->GetMatrix());
-
 }

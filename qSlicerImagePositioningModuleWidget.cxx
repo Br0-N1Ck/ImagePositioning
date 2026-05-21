@@ -15,13 +15,22 @@
 
 ==============================================================================*/
 
+#include "qSlicerImagePositioningModuleWidget.h"
+#include "ui_qSlicerImagePositioningModuleWidget.h"
+
+
+#include <qSlicerPythonManager.h> // include Python Manager first
+
 // Qt includes
 #include <QDebug>
 #include <QSignalBlocker>
+#include <QVariantMap>
+#include <QString>
 
-// Slicer includes
-#include "qSlicerImagePositioningModuleWidget.h"
-#include "ui_qSlicerImagePositioningModuleWidget.h"
+// CTK includes
+#include <ctkDICOMQuery.h>
+#include <ctkDICOMRetrieve.h>
+#include <ctkDICOMDatabase.h>
 
 // MRML includes
 #include <vtkMRMLImagePositioningNode.h>
@@ -35,9 +44,7 @@
 #include <vtkMRMLLinearTransformNode.h>
 #include <vtkMRMLSliceCompositeNode.h>
 
-
 // Slicer includes
-//#include <qSlicerSingletonViewFactory.h>
 #include <qSlicerLayoutManager.h>
 #include <qSlicerApplication.h>
 #include <qMRMLSliceWidget.h>
@@ -195,28 +202,17 @@ void qSlicerImagePositioningModuleWidget::setup()
     this, SLOT(onDrrImageNodeChanged(vtkMRMLNode*)));
   connect(d->MRMLNodeComboBox_XrayImage, SIGNAL(currentNodeChanged(vtkMRMLNode*)), 
     this, SLOT(onXrayImageNodeChanged(vtkMRMLNode*)));
-  //connect(d->MRMLSliderWidget_DrrOpacity, SIGNAL(valueChanged(double)),
-  //    this, SLOT(onDrrOpacityChanged(double)));
   connect(d->MRMLSliderWidget_XrayOpacity, SIGNAL(valueChanged(double)),
       this, SLOT(onXrayOpacityChanged(double)));
 
 
   // Buttons
-  // TODO: Add proper mutual exclusivity for buttons
-  QObject::connect( d->PushButton_SetView, SIGNAL(clicked()),
-    this, SLOT(onSetViewClicked()));
-  QObject::connect( d->PushButton_CustomLayout, SIGNAL(clicked()),
-    this, SLOT(onSetCustomLayoutClicked()));
-  // QObject::connect(d->PushButton_HorizontalOrientation, SIGNAL(clicked()),
-  //     this, SLOT(onHorizontalOrientationClicked()));
-  // QObject::connect(d->PushButton_VerticalOrientation, SIGNAL(clicked()),
-  //     this, SLOT(onVerticalOrientationClicked()));
-  QObject::connect(d->MRMLSliderWidget_HorizontalTransform, SIGNAL(valueChanged(double)),
-    this, SLOT(onHorizontalTransformChanged(double)));
-  QObject::connect(d->MRMLSliderWidget_VerticalTransform, SIGNAL(valueChanged(double)),
-    this, SLOT(onVerticalTransformChanged(double)));
-  QObject::connect(d->MRMLSliderWidget_Rotation, SIGNAL(valueChanged(double)),
-    this, SLOT(onRotationTransformChanged(double)));
+  QObject::connect(d->PushButton_RetrieveDICOM, SIGNAL(clicked()), this, SLOT(onRetrieveDICOMClicked()));
+  QObject::connect(d->PushButton_SetView, SIGNAL(clicked()), this, SLOT(onSetViewClicked()));
+  QObject::connect(d->PushButton_CustomLayout, SIGNAL(clicked()), this, SLOT(onSetCustomLayoutClicked()));
+  QObject::connect(d->MRMLSliderWidget_HorizontalTransform, SIGNAL(valueChanged(double)), this, SLOT(onHorizontalTransformChanged(double)));
+  QObject::connect(d->MRMLSliderWidget_VerticalTransform, SIGNAL(valueChanged(double)), this, SLOT(onVerticalTransformChanged(double)));
+  QObject::connect(d->MRMLSliderWidget_Rotation, SIGNAL(valueChanged(double)), this, SLOT(onRotationTransformChanged(double)));
   QObject::connect(d->PushButton_ScaleXrayImage, SIGNAL(clicked()), this, SLOT(onScaleXrayImageClicked()));
   QObject::connect(d->PushButton_Up, SIGNAL(clicked()), this, SLOT(onMoveUpClicked()));
   QObject::connect(d->PushButton_Down, SIGNAL(clicked()), this, SLOT(onMoveDownClicked()));
@@ -234,81 +230,174 @@ void qSlicerImagePositioningModuleWidget::setup()
 //-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::setMRMLScene(vtkMRMLScene* scene)
 {
-    Q_D(qSlicerImagePositioningModuleWidget);
-    this->Superclass::setMRMLScene(scene);
+  Q_D(qSlicerImagePositioningModuleWidget);
+  this->Superclass::setMRMLScene(scene);
 
-    qvtkReconnect(d->logic(), scene, vtkMRMLScene::EndImportEvent, this, SLOT(onSceneImportedEvent()));
-    qvtkReconnect(d->logic(), scene, vtkMRMLScene::EndCloseEvent, this, SLOT(onSceneClosedEvent()));
+  qvtkReconnect(d->logic(), scene, vtkMRMLScene::EndImportEvent, this, SLOT(onSceneImportedEvent()));
+  qvtkReconnect(d->logic(), scene, vtkMRMLScene::EndCloseEvent, this, SLOT(onSceneClosedEvent()));
 
-    // Find parameters node or create it if there is none in the scene
-    if (scene)
+  // Find parameters node or create it if there is none in the scene
+  if (scene)
+  {
+    if (d->MRMLNodeComboBox_ParameterSet->currentNode())
     {
-        if (d->MRMLNodeComboBox_ParameterSet->currentNode())
-        {
-            this->setParameterNode(d->MRMLNodeComboBox_ParameterSet->currentNode());
-        }
-        else if (vtkMRMLNode* node = scene->GetNthNodeByClass(0, "vtkMRMLImagePositioningNode"))
-        {
-            this->setParameterNode(node);
-        }
-        else
-        {
-            vtkMRMLNode* newNode = scene->AddNewNodeByClass("vtkMRMLImagePositioningNode");
-            this->setParameterNode(newNode);
-        }
+        this->setParameterNode(d->MRMLNodeComboBox_ParameterSet->currentNode());
     }
+    else if (vtkMRMLNode* node = scene->GetNthNodeByClass(0, "vtkMRMLImagePositioningNode"))
+    {
+        this->setParameterNode(node);
+    }
+    else
+    {
+        vtkMRMLNode* newNode = scene->AddNewNodeByClass("vtkMRMLImagePositioningNode");
+        this->setParameterNode(newNode);
+    }
+  }
 }
-
+//-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::setParameterNode(vtkMRMLNode* node)
 {
-    Q_D(qSlicerImagePositioningModuleWidget);
+  Q_D(qSlicerImagePositioningModuleWidget);
 
-    vtkMRMLImagePositioningNode* parameterNode = vtkMRMLImagePositioningNode::SafeDownCast(node);
+  vtkMRMLImagePositioningNode* parameterNode = vtkMRMLImagePositioningNode::SafeDownCast(node);
 
-    // Make sure the parameter set node is selected (in case the function was not called by the selector combobox signal)
-    d->MRMLNodeComboBox_ParameterSet->setCurrentNode(node);
+  // Make sure the parameter set node is selected (in case the function was not called by the selector combobox signal)
+  d->MRMLNodeComboBox_ParameterSet->setCurrentNode(node);
 
-    // Each time the node is modified, the UI widgets are updated
-    //qvtkReconnect(d->ParameterNode, parameterNode, vtkCommand::ModifiedEvent,
-    //    this, SLOT(updateWidgetFromMRML()));
+  // Each time the node is modified, the UI widgets are updated
+  //qvtkReconnect(d->ParameterNode, parameterNode, vtkCommand::ModifiedEvent,
+  //    this, SLOT(updateWidgetFromMRML()));
 
-    d->ParameterNode = parameterNode;
+  d->ParameterNode = parameterNode;
 
 
 
-    // Set selected MRML nodes in comboboxes in the parameter set if it was nullptr there
-    // (then in the meantime the comboboxes selected the first one from the scene and we have to set that)
-    //if (d->ParameterNode)
-    //{
-    //    vtkMRMLRTBeamNode* beamNode = vtkMRMLRTBeamNode::SafeDownCast(d->MRMLNodeComboBox_Beam->currentNode());
-    //    d->ParameterNode->SetAndObserveBeamNode(beamNode);
-    //    vtkMRMLRTBeamNode* planNode = vtkMRMLRTBeamNode::SafeDownCast(d->MRMLNodeComboBox_Plan->currentNode());
-    //}
-    this->updateWidgetFromMRML();
+  // Set selected MRML nodes in comboboxes in the parameter set if it was nullptr there
+  // (then in the meantime the comboboxes selected the first one from the scene and we have to set that)
+  //if (d->ParameterNode)
+  //{
+  //    vtkMRMLRTBeamNode* beamNode = vtkMRMLRTBeamNode::SafeDownCast(d->MRMLNodeComboBox_Beam->currentNode());
+  //    d->ParameterNode->SetAndObserveBeamNode(beamNode);
+  //    vtkMRMLRTBeamNode* planNode = vtkMRMLRTBeamNode::SafeDownCast(d->MRMLNodeComboBox_Plan->currentNode());
+  //}
+  this->updateWidgetFromMRML();
 }
 
 //-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::updateWidgetFromMRML()
 {
-    Q_D(qSlicerImagePositioningModuleWidget);
+  Q_D(qSlicerImagePositioningModuleWidget);
 
-    vtkMRMLImagePositioningNode* parameterNode = vtkMRMLImagePositioningNode::SafeDownCast(d->MRMLNodeComboBox_ParameterSet->currentNode());
+  vtkMRMLImagePositioningNode* parameterNode = vtkMRMLImagePositioningNode::SafeDownCast(d->MRMLNodeComboBox_ParameterSet->currentNode());
 
-    if (!this->mrmlScene())
-    {
-        qCritical() << Q_FUNC_INFO << ": Invalid scene";
-        return;
-    }
+  if (!this->mrmlScene())
+  {
+      qCritical() << Q_FUNC_INFO << ": Invalid scene";
+      return;
+  }
 
-    if (!parameterNode)
-    {
-        qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
-        return;
-    }
-    // TODO
+  if (!parameterNode)
+  {
+      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+      return;
+  }
+  // TODO
 }
 
+//-----------------------------------------------------------------------------
+void qSlicerImagePositioningModuleWidget::onRetrieveDICOMClicked()
+{
+  Q_D(qSlicerImagePositioningModuleWidget);
 
+  QString patientID = d->LineEdit_PatientID->text();
+  QString aeTitle = d->LineEdit_AETitle->text();
+  QString host = d->LineEdit_Host->text();
+  int port = d->SpinBox_Port->value();
+  if (patientID.isEmpty() || aeTitle.isEmpty() || host.isEmpty())
+  {
+    qCritical() << Q_FUNC_INFO << ": Invalid parameters. Fill in the fields.";
+    return;
+  }
+
+  QApplication::setOverrideCursor(Qt::WaitCursor);
+
+  // -------- Query ----------
+
+  ctkDICOMQuery* dicomQuery = new ctkDICOMQuery();
+  dicomQuery->setCallingAETitle("SLICER");
+  dicomQuery->setCalledAETitle(aeTitle);
+  dicomQuery->setHost(host);
+  dicomQuery->setPort(port);
+
+  QMap<QString, QVariant> filters;
+  filters["ID"] = patientID;
+  dicomQuery->setFilters(filters);
+
+  // temporary in-memory database for storing query results
+  ctkDICOMDatabase* tempDb = new ctkDICOMDatabase();
+  tempDb->openDatabase("");
+  dicomQuery->query(*tempDb);
+
+  // Get the main DICOM database of Slicer
+  ctkDICOMDatabase* slicerDb = qSlicerCoreApplication::application()->dicomDatabase();
+
+  // ---------- Retrieve -----------
+
+  bool useCGET = true;
+  ctkDICOMRetrieve* dicomRetrieve = new ctkDICOMRetrieve();
+  dicomRetrieve->setCallingAETitle(dicomQuery->callingAETitle());
+  dicomRetrieve->setCalledAETitle(dicomQuery->calledAETitle());
+  dicomRetrieve->setHost(dicomQuery->host());
+  dicomRetrieve->setPort(dicomQuery->port());
+  dicomRetrieve->setDatabase(*slicerDb);
+
+  QList<QPair<QString, QString>> studySeriesList = dicomQuery->studyAndSeriesInstanceUIDQueried();
+  for (const auto& studySeries : studySeriesList)
+  {
+      QString study = studySeries.first;
+      QString series = studySeries.second;
+      qDebug() << "ctkDICOMRetrieve: Retrieving Study:" << study << "- Series:" << series;
+      QCoreApplication::processEvents();
+
+      bool success;
+      if (useCGET)
+      {
+          success = dicomRetrieve->getSeries(study, series);
+      }
+      else
+      {
+          dicomRetrieve->setMoveDestinationAETitle(dicomQuery->callingAETitle());
+          success = dicomRetrieve->moveSeries(study, series);
+      }
+      if (!success)
+      {
+          qCritical() << "Failed";
+          QApplication::restoreOverrideCursor();
+          return;
+      }
+      else
+      {
+          qDebug() << "Success";
+      }
+  }
+
+  slicerDb->updateDisplayedFields();
+
+  // --------- Load into scene ----------
+
+  qSlicerPythonManager* pythonManager = qSlicerApplication::application()->pythonManager();
+
+  QString pythonCode = QString(
+      "from DICOMLib import DICOMUtils\n"
+      "loadedNodes = DICOMUtils.loadPatientByPatientID('%1')\n"
+      "print(f'DICOMUtils: Loaded {len(loadedNodes)} nodes')\n"
+  ).arg(patientID);
+
+  pythonManager->executeString(pythonCode);
+  QApplication::restoreOverrideCursor();
+}
+
+//-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::onSetCustomLayoutClicked()
 {
   Q_D(qSlicerImagePositioningModuleWidget);
@@ -338,6 +427,7 @@ void qSlicerImagePositioningModuleWidget::onSetCustomLayoutClicked()
   slicerApplication->processEvents();
 }
 
+//-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::onSetViewClicked()
 {
   Q_D(qSlicerImagePositioningModuleWidget);
@@ -359,54 +449,54 @@ void qSlicerImagePositioningModuleWidget::onSetViewClicked()
   // DRR - background, XRay - foreground
   if (layoutManager->layout() == 1020)
   {
-      vtkMRMLScalarVolumeNode* xrayImageNode = d->ParameterNode->GetXrayNode();
-      vtkMRMLScalarVolumeNode* drrImageNode = d->ParameterNode->GetDrrNode();
+    vtkMRMLScalarVolumeNode* xrayImageNode = d->ParameterNode->GetXrayNode();
+    vtkMRMLScalarVolumeNode* drrImageNode = d->ParameterNode->GetDrrNode();
 
-          // Set active orientation based on the button checked
-      if (d->PushButton_VerticalOrientation->isChecked())
-      {
-        d->logic()->SetActiveOrientation(vtkMRMLImagePositioningNode::OrientationVertical);
-      }
-      else
-      {
-        d->logic()->SetActiveOrientation(vtkMRMLImagePositioningNode::OrientationHorizontal);
-      }
+    // Set active orientation based on the button checked
+    if (d->PushButton_VerticalOrientation->isChecked())
+    {
+      d->logic()->SetActiveOrientation(vtkMRMLImagePositioningNode::OrientationVertical);
+    }
+    else
+    {
+      d->logic()->SetActiveOrientation(vtkMRMLImagePositioningNode::OrientationHorizontal);
+    }
 
 
 
-      this->setXrayNode(xrayImageNode);
+    this->setXrayNode(xrayImageNode);
 
-      qMRMLSliceWidget* sliceWidget = layoutManager->sliceWidget("XrayDetectorSlice");
-      vtkMRMLSliceNode* sliceNode = sliceWidget->mrmlSliceNode();
-      vtkMRMLSliceLogic* sliceLogic = sliceWidget->sliceLogic();
+    qMRMLSliceWidget* sliceWidget = layoutManager->sliceWidget("XrayDetectorSlice");
+    vtkMRMLSliceNode* sliceNode = sliceWidget->mrmlSliceNode();
+    vtkMRMLSliceLogic* sliceLogic = sliceWidget->sliceLogic();
 
-      // Set slice to show DRR first
-      sliceLogic->GetSliceCompositeNode()->SetForegroundVolumeID(nullptr);
-      sliceLogic->GetSliceCompositeNode()->SetBackgroundVolumeID(drrImageNode->GetID());
-      sliceLogic->RotateSliceToLowestVolumeAxes(); // Reformat 
-      sliceLogic->FitSliceToAll();
-      sliceNode->UpdateMatrices();
-      this->setSliceOrientation();
+    // Set slice to show DRR first
+    sliceLogic->GetSliceCompositeNode()->SetForegroundVolumeID(nullptr);
+    sliceLogic->GetSliceCompositeNode()->SetBackgroundVolumeID(drrImageNode->GetID());
+    sliceLogic->RotateSliceToLowestVolumeAxes(); // Reformat 
+    sliceLogic->FitSliceToAll();
+    sliceNode->UpdateMatrices();
+    this->setSliceOrientation();
 
-      sliceLogic->GetSliceCompositeNode()->SetForegroundVolumeID(xrayImageNode->GetID());
-      sliceLogic->GetSliceCompositeNode()->SetForegroundOpacity(d->MRMLSliderWidget_XrayOpacity->value());
-      sliceLogic->GetSliceCompositeNode()->SetClipToBackgroundVolume(false);
+    sliceLogic->GetSliceCompositeNode()->SetForegroundVolumeID(xrayImageNode->GetID());
+    sliceLogic->GetSliceCompositeNode()->SetForegroundOpacity(d->MRMLSliderWidget_XrayOpacity->value());
+    sliceLogic->GetSliceCompositeNode()->SetClipToBackgroundVolume(false);
 
-      // Change color of images
-      vtkMRMLScalarVolumeDisplayNode* drrDisplayNode = vtkMRMLScalarVolumeDisplayNode::SafeDownCast(drrImageNode->GetDisplayNode());
-      vtkMRMLScalarVolumeDisplayNode* xrayDisplayNode = vtkMRMLScalarVolumeDisplayNode::SafeDownCast(xrayImageNode->GetDisplayNode());
-      drrDisplayNode->SetAndObserveColorNodeID("vtkMRMLColorTableNodeGreen");
-      xrayDisplayNode->SetAndObserveColorNodeID("vtkMRMLColorTableNodeRed");
+    // Change color of images
+    vtkMRMLScalarVolumeDisplayNode* drrDisplayNode = vtkMRMLScalarVolumeDisplayNode::SafeDownCast(drrImageNode->GetDisplayNode());
+    vtkMRMLScalarVolumeDisplayNode* xrayDisplayNode = vtkMRMLScalarVolumeDisplayNode::SafeDownCast(xrayImageNode->GetDisplayNode());
+    drrDisplayNode->SetAndObserveColorNodeID("vtkMRMLColorTableNodeGreen");
+    xrayDisplayNode->SetAndObserveColorNodeID("vtkMRMLColorTableNodeRed");
 
-      // Set compositing mode
-      // TODO: let user choose compositing mode
-      // alpha blend = 0
-      // add = 2
-      // subtract = 3
-      //sliceLogic->GetSliceCompositeNode()->SetCompositing(2); // add
+    // Set compositing mode
+    // TODO: let user choose compositing mode
+    // alpha blend = 0
+    // add = 2
+    // subtract = 3
+    //sliceLogic->GetSliceCompositeNode()->SetCompositing(2); // add
 
-      this->sync2DControlsFromActiveOrientation();
-      this->updateXrayTransformFrom2DControls();
+    this->sync2DControlsFromActiveOrientation();
+    this->updateXrayTransformFrom2DControls();
   }
   else
   {
@@ -415,12 +505,13 @@ void qSlicerImagePositioningModuleWidget::onSetViewClicked()
   }
 }
 
+//-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::onScaleXrayImageClicked()
 {
-    Q_D(qSlicerImagePositioningModuleWidget);
-    double sourceToImagerMm = d->MRMLSliderWidget_SID->value();
+  Q_D(qSlicerImagePositioningModuleWidget);
+  double sourceToImagerMm = d->MRMLSliderWidget_SID->value();
 
-    d->logic()->AlignAndScaleXrayToDrr(sourceToImagerMm);
+  d->logic()->AlignAndScaleXrayToDrr(sourceToImagerMm);
 }
 
 
@@ -454,13 +545,14 @@ void qSlicerImagePositioningModuleWidget::onScaleXrayImageClicked()
 //   this->updateXrayTransformFrom2DControls();
 // }
 
+//-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::onDrrImageNodeChanged(vtkMRMLNode* drrImageNode)
 {
   Q_D(qSlicerImagePositioningModuleWidget);
   if (!d->ParameterNode)
   {
-      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
-      return;
+    qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+    return;
   }
   if (drrImageNode)
   {
@@ -481,13 +573,14 @@ void qSlicerImagePositioningModuleWidget::onDrrImageNodeChanged(vtkMRMLNode* drr
   }
 }
 
+//-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::onXrayImageNodeChanged(vtkMRMLNode* xrayImageNode)
 {
   Q_D(qSlicerImagePositioningModuleWidget);
   if (!d->ParameterNode)
   {
-      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
-      return;
+    qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+    return;
   }
   //vtkMRMLScalarVolumeNode* xrayVolumeNode = vtkMRMLScalarVolumeNode::SafeDownCast(xrayImageNode);
 
@@ -525,7 +618,6 @@ void qSlicerImagePositioningModuleWidget::setXrayNode(vtkMRMLScalarVolumeNode* x
   vtkMRMLLinearTransformNode* activeTransformNode = nullptr;
   if (xrayNode)
   {
-
     d->logic()->SetXrayNode(xrayNode);
     activeTransformNode = d->logic()->GetActiveXrayTransformNode();
   }
@@ -554,8 +646,8 @@ void qSlicerImagePositioningModuleWidget::sync2DControlsFromActiveOrientation()
   Q_D(qSlicerImagePositioningModuleWidget);
   if (!d->ParameterNode)
   {
-      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
-      return;
+    qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+    return;
   }
   int orientation = d->ParameterNode->GetActiveOrientation();
   qSlicerImagePositioningModuleWidgetPrivate::Pose2D* pose = &d->HorizontalPose;
@@ -578,8 +670,8 @@ void qSlicerImagePositioningModuleWidget::updateXrayTransformFrom2DControls()
   Q_D(qSlicerImagePositioningModuleWidget);
   if (!d->ParameterNode)
   {
-      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
-      return;
+    qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+    return;
   }
 
   qSlicerImagePositioningModuleWidgetPrivate::Pose2D* pose = &d->HorizontalPose;
@@ -649,8 +741,8 @@ void qSlicerImagePositioningModuleWidget::onResetTransformClicked()
   Q_D(qSlicerImagePositioningModuleWidget);
   if (!d->ParameterNode)
   {
-      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
-      return;
+    qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+    return;
   }
   int orientation = d->ParameterNode->GetActiveOrientation();
   if (orientation == vtkMRMLImagePositioningNode::OrientationVertical)
@@ -671,8 +763,8 @@ void qSlicerImagePositioningModuleWidget::onHorizontalTransformChanged(double va
   Q_D(qSlicerImagePositioningModuleWidget);
   if (!d->ParameterNode)
   {
-      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
-      return;
+    qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+    return;
   }
   int orientation = d->ParameterNode->GetActiveOrientation();
   if (orientation == vtkMRMLImagePositioningNode::OrientationVertical)
@@ -692,8 +784,8 @@ void qSlicerImagePositioningModuleWidget::onVerticalTransformChanged(double valu
   Q_D(qSlicerImagePositioningModuleWidget);
   if (!d->ParameterNode)
   {
-      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
-      return;
+    qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+    return;
   }
   int orientation = d->ParameterNode->GetActiveOrientation();
   if (orientation == vtkMRMLImagePositioningNode::OrientationVertical)
@@ -713,8 +805,8 @@ void qSlicerImagePositioningModuleWidget::onRotationTransformChanged(double valu
   Q_D(qSlicerImagePositioningModuleWidget);
   if (!d->ParameterNode)
   {
-      qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
-      return;
+    qCritical() << Q_FUNC_INFO << ": Invalid parameter node";
+    return;
   }
   int orientation = d->ParameterNode->GetActiveOrientation();
   if (orientation == vtkMRMLImagePositioningNode::OrientationVertical)
@@ -747,26 +839,27 @@ void qSlicerImagePositioningModuleWidget::onRotationTransformChanged(double valu
 //    }
 //}
 
+//-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::onXrayOpacityChanged(double opacity)
 {
-    Q_D(qSlicerImagePositioningModuleWidget);
-    qSlicerApplication* slicerApplication = qSlicerApplication::application();
-    qSlicerLayoutManager* layoutManager = slicerApplication->layoutManager();
+  Q_D(qSlicerImagePositioningModuleWidget);
+  qSlicerApplication* slicerApplication = qSlicerApplication::application();
+  qSlicerLayoutManager* layoutManager = slicerApplication->layoutManager();
 
-    if (layoutManager->layout() == 1020)
-    {
-        qMRMLSliceWidget* sliceWidget = slicerApplication->layoutManager()->sliceWidget("XrayDetectorSlice");
-        vtkMRMLSliceLogic* sliceLogic = sliceWidget->sliceLogic();
-        sliceLogic->GetSliceCompositeNode()->SetForegroundOpacity(opacity);
-    }
-    else
-    {
-        qCritical() << Q_FUNC_INFO << ": Wrong layout, set layout to custom";
-        return;
-    }
-
+  if (layoutManager->layout() == 1020)
+  {
+    qMRMLSliceWidget* sliceWidget = slicerApplication->layoutManager()->sliceWidget("XrayDetectorSlice");
+    vtkMRMLSliceLogic* sliceLogic = sliceWidget->sliceLogic();
+    sliceLogic->GetSliceCompositeNode()->SetForegroundOpacity(opacity);
+  }
+  else
+  {
+    qCritical() << Q_FUNC_INFO << ": Wrong layout, set layout to custom";
+    return;
+  }
 }
 
+//-----------------------------------------------------------------------------
 void qSlicerImagePositioningModuleWidget::setSliceOrientation()
 {
   Q_D(qSlicerImagePositioningModuleWidget);
@@ -804,10 +897,10 @@ void qSlicerImagePositioningModuleWidget::setSliceOrientation()
   originRAS[2] = SliceToRASMatrix->GetElement(2,3);
 
   sliceNode->SetSliceToRASByNTP(
-      N[0], N[1], N[2],
-      T[0], T[1], T[2],
-      originRAS[0], originRAS[1], originRAS[2],
-      0                   // Orientation index (unused)
+    N[0], N[1], N[2],
+    T[0], T[1], T[2],
+    originRAS[0], originRAS[1], originRAS[2],
+    0                   // Orientation index (unused)
   );
   sliceNode->UpdateMatrices();
 }
