@@ -57,6 +57,7 @@ public:
   /// Align Xray along slice normal to match DRR plane and scale it
   /// by sourceToIsocenterMm/sourceToImagerMm.
   void AlignAndScaleXrayToDrr(double sourceToImagerMm);
+  vtkMRMLScalarVolumeNode* GetOrCreateImageWithGradientFilter(vtkMRMLScalarVolumeNode* inputVolume);
 
 protected:
   vtkSlicerImagePositioningLogic();

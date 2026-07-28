@@ -210,9 +210,6 @@ void qSlicerImagePositioningModuleWidget::setup()
   QObject::connect(d->PushButton_RetrieveDICOM, SIGNAL(clicked()), this, SLOT(onRetrieveDICOMClicked()));
   QObject::connect(d->PushButton_SetView, SIGNAL(clicked()), this, SLOT(onSetViewClicked()));
   QObject::connect(d->PushButton_CustomLayout, SIGNAL(clicked()), this, SLOT(onSetCustomLayoutClicked()));
-  QObject::connect(d->MRMLSliderWidget_HorizontalTransform, SIGNAL(valueChanged(double)), this, SLOT(onHorizontalTransformChanged(double)));
-  QObject::connect(d->MRMLSliderWidget_VerticalTransform, SIGNAL(valueChanged(double)), this, SLOT(onVerticalTransformChanged(double)));
-  QObject::connect(d->MRMLSliderWidget_Rotation, SIGNAL(valueChanged(double)), this, SLOT(onRotationTransformChanged(double)));
   QObject::connect(d->PushButton_ScaleXrayImage, SIGNAL(clicked()), this, SLOT(onScaleXrayImageClicked()));
   QObject::connect(d->PushButton_Up, SIGNAL(clicked()), this, SLOT(onMoveUpClicked()));
   QObject::connect(d->PushButton_Down, SIGNAL(clicked()), this, SLOT(onMoveDownClicked()));
@@ -221,6 +218,16 @@ void qSlicerImagePositioningModuleWidget::setup()
   QObject::connect(d->PushButton_Clockwise, SIGNAL(clicked()), this, SLOT(onRotateClockwiseClicked()));
   QObject::connect(d->PushButton_CounterClockwise, SIGNAL(clicked()), this, SLOT(onRotateCounterClockwiseClicked()));
   QObject::connect(d->PushButton_Reset, SIGNAL(clicked()), this, SLOT(onResetTransformClicked()));
+
+  // Checkboxes
+  QObject::connect(d->checkBox_ShowEdgesXray, SIGNAL(toggled(bool)), this, SLOT(onShowEdgesXrayToggled(bool)));
+  QObject::connect(d->checkBox_ShowEdgesDrr, SIGNAL(toggled(bool)), this, SLOT(onShowEdgesDrrToggled(bool)));
+
+  // Sliders
+  QObject::connect(d->MRMLSliderWidget_HorizontalTransform, SIGNAL(valueChanged(double)), this, SLOT(onHorizontalTransformChanged(double)));
+  QObject::connect(d->MRMLSliderWidget_VerticalTransform, SIGNAL(valueChanged(double)), this, SLOT(onVerticalTransformChanged(double)));
+  QObject::connect(d->MRMLSliderWidget_Rotation, SIGNAL(valueChanged(double)), this, SLOT(onRotationTransformChanged(double)));
+
 
   this->setXrayNode(nullptr);
   this->sync2DControlsFromActiveOrientation();
@@ -630,6 +637,7 @@ void qSlicerImagePositioningModuleWidget::setXrayNode(vtkMRMLScalarVolumeNode* x
   d->MRMLSliderWidget_HorizontalTransform->setEnabled(hasTransform);
   d->MRMLSliderWidget_VerticalTransform->setEnabled(hasTransform);
   d->MRMLSliderWidget_Rotation->setEnabled(hasTransform);
+  // TODO: Uncheck edges
   d->PushButton_Up->setEnabled(hasTransform);
   d->PushButton_Down->setEnabled(hasTransform);
   d->PushButton_Left->setEnabled(hasTransform);
@@ -903,4 +911,58 @@ void qSlicerImagePositioningModuleWidget::setSliceOrientation()
     0                   // Orientation index (unused)
   );
   sliceNode->UpdateMatrices();
+}
+
+void qSlicerImagePositioningModuleWidget::onShowEdgesXrayToggled(bool checked)
+{
+  Q_D(qSlicerImagePositioningModuleWidget);
+
+  vtkMRMLScalarVolumeNode* xrayImageNode = d->ParameterNode->GetXrayNode();
+
+  // Get slice logic
+  qSlicerApplication* slicerApplication = qSlicerApplication::application();
+  qSlicerLayoutManager* layoutManager = slicerApplication->layoutManager();
+  qMRMLSliceWidget* sliceWidget = layoutManager->sliceWidget("XrayDetectorSlice");
+  vtkMRMLSliceLogic* sliceLogic = sliceWidget->sliceLogic();
+
+  if (checked)
+  {
+    vtkMRMLScalarVolumeNode* gradientImageNode = d->logic()->GetOrCreateImageWithGradientFilter(xrayImageNode);
+    sliceLogic->GetSliceCompositeNode()->SetForegroundVolumeID(gradientImageNode->GetID());
+
+    // Set color
+    vtkMRMLScalarVolumeDisplayNode* xrayDisplayNode = vtkMRMLScalarVolumeDisplayNode::SafeDownCast(gradientImageNode->GetDisplayNode());
+    xrayDisplayNode->SetAndObserveColorNodeID("vtkMRMLColorTableNodeRed");
+  }
+  else
+  {
+    sliceLogic->GetSliceCompositeNode()->SetForegroundVolumeID(xrayImageNode->GetID());
+  }
+}
+
+void qSlicerImagePositioningModuleWidget::onShowEdgesDrrToggled(bool checked)
+{
+  Q_D(qSlicerImagePositioningModuleWidget);
+
+  vtkMRMLScalarVolumeNode* drrImageNode = d->ParameterNode->GetDrrNode();
+
+  // Get slice logic
+  qSlicerApplication* slicerApplication = qSlicerApplication::application();
+  qSlicerLayoutManager* layoutManager = slicerApplication->layoutManager();
+  qMRMLSliceWidget* sliceWidget = layoutManager->sliceWidget("XrayDetectorSlice");
+  vtkMRMLSliceLogic* sliceLogic = sliceWidget->sliceLogic();
+
+  if (checked)
+  {
+    vtkMRMLScalarVolumeNode* gradientImageNode = d->logic()->GetOrCreateImageWithGradientFilter(drrImageNode);
+    sliceLogic->GetSliceCompositeNode()->SetBackgroundVolumeID(gradientImageNode->GetID());
+
+    // Set color
+    vtkMRMLScalarVolumeDisplayNode* drrDisplayNode = vtkMRMLScalarVolumeDisplayNode::SafeDownCast(gradientImageNode->GetDisplayNode());
+    drrDisplayNode->SetAndObserveColorNodeID("vtkMRMLColorTableNodeGreen");
+  }
+  else
+  {
+    sliceLogic->GetSliceCompositeNode()->SetBackgroundVolumeID(drrImageNode->GetID());
+  }
 }

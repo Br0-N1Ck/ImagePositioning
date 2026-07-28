@@ -31,6 +31,9 @@
 #include <vtkTransform.h>
 #include <vtkMatrix4x4.h>
 #include <vtkImageData.h>
+#include <vtkImageCast.h>
+#include <vtkImageGradient.h>
+#include <vtkImageMagnitude.h>
 
 // STD includes
 #include <cassert>
@@ -447,4 +450,44 @@ void vtkSlicerImagePositioningLogic::AlignAndScaleXrayToDrr(double sourceToImage
     return;
   }
   scaleNode->SetMatrixTransformToParent(transform->GetMatrix());
+}
+
+vtkMRMLScalarVolumeNode* vtkSlicerImagePositioningLogic::GetOrCreateImageWithGradientFilter(vtkMRMLScalarVolumeNode* inputVolume)
+{
+  vtkMRMLScene* scene = this->GetMRMLScene();
+  if (!scene)
+  {
+    return nullptr;
+  }
+
+  std::string outputName = std::string(inputVolume->GetName()) + "_Gradient";
+
+  vtkMRMLScalarVolumeNode* outputVolume = vtkMRMLScalarVolumeNode::SafeDownCast(scene->GetFirstNodeByName(outputName.c_str()));
+
+  if (outputVolume)
+  {
+    return outputVolume; // Already computed
+  }
+
+  vtkImageData* inputData = inputVolume->GetImageData();
+
+  // Compute gradient
+
+  vtkNew<vtkImageGradient> gradient;
+  gradient->SetInputData(inputData);
+  gradient->SetDimensionality(2);
+
+  // Compute magnitude
+
+  vtkNew<vtkImageMagnitude> magnitude;
+  magnitude->SetInputConnection(gradient->GetOutputPort());
+  magnitude->Update();
+
+  // Create new Scalar Volume Node
+  
+  outputVolume = vtkMRMLScalarVolumeNode::SafeDownCast(scene->AddNewNodeByClass("vtkMRMLScalarVolumeNode", outputName));
+  outputVolume->CopyOrientation(inputVolume);
+  outputVolume->SetAndObserveImageData(magnitude->GetOutput());
+  outputVolume->SetAndObserveTransformNodeID(inputVolume->GetTransformNodeID());
+  return outputVolume;
 }
