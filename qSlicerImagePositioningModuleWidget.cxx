@@ -502,6 +502,9 @@ void qSlicerImagePositioningModuleWidget::onSetViewClicked()
     // subtract = 3
     //sliceLogic->GetSliceCompositeNode()->SetCompositing(2); // add
 
+    d->checkBox_ShowEdgesXray->setChecked(false);
+    d->checkBox_ShowEdgesDrr->setChecked(false);
+
     this->sync2DControlsFromActiveOrientation();
     this->updateXrayTransformFrom2DControls();
   }
